@@ -5,6 +5,8 @@ import {ai} from '../models';
 import {config} from '../models';
 import {slidev} from '../models';
 
+export function ApplyTheme(arg1:string):Promise<void>;
+
 export function CheckForUpdates():Promise<updater.UpdateInfo>;
 
 export function CreateProject(arg1:string):Promise<void>;
@@ -13,13 +15,13 @@ export function GenerateOutline(arg1:string):Promise<Array<ai.OutlineItem>>;
 
 export function GenerateSlides(arg1:string,arg2:Array<ai.OutlineItem>):Promise<void>;
 
-export function GetServerPort():Promise<string>;
-
 export function GetSettings():Promise<config.Config>;
 
 export function GetSlidevUrl():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
+
+export function InsertPage(arg1:number,arg2:string):Promise<void>;
 
 export function ListProjects():Promise<Array<slidev.Project>>;
 
@@ -30,3 +32,5 @@ export function SaveSettings(arg1:config.Config):Promise<void>;
 export function SaveSlides(arg1:string):Promise<void>;
 
 export function StartSlidevServer():Promise<string>;
+
+export function UpdatePage(arg1:number,arg2:string):Promise<void>;

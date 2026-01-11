@@ -18,7 +18,6 @@ type App struct {
 	aiService    *ai.Service
 	tools        *slidev.Tools
 	slidevServer *slidev.Server
-	port         string
 	version      string
 }
 
@@ -47,15 +46,6 @@ func NewApp(version string) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Start AI Server
-	port, err := a.aiService.StartInBackground()
-	if err != nil {
-		fmt.Printf("Failed to start AI server: %v\n", err)
-	} else {
-		fmt.Printf("AI Server started on port %s\n", port)
-		a.port = port
-	}
-
 	// Create default deck if not exists
 	if _, err := os.Stat(filepath.Join(a.tools.WorkingDir, "slides.md")); os.IsNotExist(err) {
 		a.tools.CreateDeck("Slidev Studio AI", "seriph")
@@ -75,11 +65,6 @@ func (a *App) GetSlidevUrl() string {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
-}
-
-// GetServerPort returns the AI server port
-func (a *App) GetServerPort() string {
-	return a.port
 }
 
 // SaveSettings saves the AI configuration
@@ -115,6 +100,21 @@ func (a *App) ReadSlides() (string, error) {
 // SaveSlides saves content to slides.md
 func (a *App) SaveSlides(content string) error {
 	return a.tools.SaveSlides("slides.md", content)
+}
+
+// UpdatePage updates a specific slide page content (Tool Call from AI)
+func (a *App) UpdatePage(pageIndex int, markdown string) error {
+	return a.tools.UpdatePage(pageIndex, markdown)
+}
+
+// InsertPage inserts a new slide after a specific index (Tool Call from AI)
+func (a *App) InsertPage(afterIndex int, layout string) error {
+	return a.tools.InsertPage(afterIndex, layout)
+}
+
+// ApplyTheme applies a global theme to the presentation (Tool Call from AI)
+func (a *App) ApplyTheme(themeName string) error {
+	return a.tools.ApplyGlobalTheme(themeName)
 }
 
 // GenerateOutline calls the AI service to generate an outline

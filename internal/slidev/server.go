@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -113,15 +115,46 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 		}
 	}
 
+	// Runtime detection for Slidev and Node
+	nodeExe := "node"
+	slidevBin := ""
+
+	// Check for bundled resources (Production)
+	exePath, _ := os.Executable()
+	appDir := filepath.Dir(exePath)
+	bundledResources := filepath.Join(appDir, "resources")
+
+	// If resources folder exists, we assume production
+	if _, err := os.Stat(bundledResources); err == nil {
+		// Use bundled node if exists
+		bundledNode := filepath.Join(bundledResources, "node", "node.exe")
+		if _, err := os.Stat(bundledNode); err == nil {
+			nodeExe = bundledNode
+		}
+
+		// Use bundled slidev from node_modules
+		bundledSlidev := filepath.Join(bundledResources, "node_modules", "@slidev", "cli", "bin", "slidev.mjs")
+		if _, err := os.Stat(bundledSlidev); err == nil {
+			slidevBin = bundledSlidev
+		}
+	}
+
 	portStr := strconv.Itoa(port)
-	// Run npx directly (avoid cmd.exe wrapper on Windows)
-	npxArgs := []string{"--yes", "@slidev/cli", filename, "--port", portStr}
+	var cmd *exec.Cmd
 
-	fmt.Printf("Starting Slidev: npx %s\n", strings.Join(npxArgs, " "))
+	if slidevBin != "" {
+		// Production: run node [slidev.mjs]
+		args := []string{slidevBin, filename, "--port", portStr}
+		fmt.Printf("Starting Bundled Slidev: %s %s\n", nodeExe, strings.Join(args, " "))
+		cmd = exec.CommandContext(ctx, nodeExe, args...)
+	} else {
+		// Development: fallback to npx
+		npxArgs := []string{"--yes", "@slidev/cli", filename, "--port", portStr}
+		fmt.Printf("Starting Slidev via npx: npx %s\n", strings.Join(npxArgs, " "))
+		cmd = exec.CommandContext(ctx, "npx", npxArgs...)
+	}
 
-	cmd := exec.CommandContext(ctx, "npx", npxArgs...)
 	cmd.SysProcAttr = getSysProcAttr()
-
 	cmd.Dir = dir
 
 	// Keep stdin open; Slidev CLI may exit immediately if stdin is closed.

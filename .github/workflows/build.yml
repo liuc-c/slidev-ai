@@ -51,6 +51,20 @@ jobs:
       with:
         node-version: 20
 
+    - name: Prepare Bundled Resources (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        mkdir -p build/windows/resources/node
+        # Download portable node for Windows
+        curl -L -o node.zip https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip
+        unzip node.zip
+        cp node-v20.11.0-win-x64/node.exe build/windows/resources/node/
+        
+        # Prepare node_modules in resources
+        mkdir -p build/windows/resources/node_modules
+        npm install @slidev/cli @slidev/theme-default @slidev/theme-seriph --prefix build/windows/resources
+      shell: bash
+
     - name: Install Wails
       run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 

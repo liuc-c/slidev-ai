@@ -1,0 +1,8 @@
+{
+  "name": "Slidev Studio AI",
+  "description": "A world-class, AI-powered Markdown slide editor and presentation engine inspired by Slidev. Featuring code-first design, AI-driven outline planning, and a beautiful studio interface.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

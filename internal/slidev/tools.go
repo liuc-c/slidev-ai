@@ -81,16 +81,48 @@ Content
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+// CreateDeck initializes a new deck (Legacy/Default support)
+func (t *Tools) CreateDeck(title string, theme string) error {
+	// If title doesn't end in .md, we assume it's just the title
+	// But CreateProject expects a filename.
+	// For legacy CreateDeck, we likely want "slides.md" if it's the main deck.
+	// However, the test passes "Test Title" as title, but we want to create "slides.md" in that temp dir?
+	// The implementation of CreateDeck in my memory was calling CreateProject("slides.md").
+	// But `CreateProject` sets the title inside the markdown.
+
+	filename := "slides.md"
+	path := filepath.Join(t.WorkingDir, filename)
+
+	content := fmt.Sprintf(`---
+theme: %s
+background: https://picsum.photos/id/10/1920/1080
+class: text-center
+highlighter: shiki
+lineNumbers: true
+---
+
+# %s
+
+Welcome to Slidev
+
+---
+layout: default
+---
+
+# Page 2
+
+Content
+`, theme, title)
+
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
 // SaveSlides overwrites a specific file
 func (t *Tools) SaveSlides(filename string, content string) error {
 	path := filepath.Join(t.WorkingDir, filename)
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// CreateDeck initializes a new deck (Legacy/Default support)
-func (t *Tools) CreateDeck(title string, theme string) error {
-	return t.CreateProject("slides.md")
-}
 
 // UpdatePage updates a specific page content
 func (t *Tools) UpdatePage(pageIndex int, markdown string) error {

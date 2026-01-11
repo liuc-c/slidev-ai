@@ -21,7 +21,7 @@ body {
   padding: 0;
   overflow: hidden;
 }
-#root {
+#app {
   height: 100vh;
   display: flex;
   flex-direction: column;

@@ -6,8 +6,28 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+      changelog: ${{ steps.tag_version.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -37,13 +57,13 @@ jobs:
     - name: Build Windows Installer
       if: matrix.os == 'windows-latest'
       run: |
-        wails build -nsis
+        wails build -nsis -ldflags "-X main.Version=${{ needs.prepare.outputs.new_tag }}"
       shell: bash
 
     - name: Build macOS App
       if: matrix.os == 'macos-latest'
       run: |
-        wails build
+        wails build -ldflags "-X main.Version=${{ needs.prepare.outputs.new_tag }}"
       shell: bash
 
     - name: Upload Artifacts (Windows)
@@ -59,3 +79,42 @@ jobs:
       with:
         name: slidev-studio-ai-macos
         path: build/bin/slidev-studio-ai.app
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: slidev-studio-ai-windows
+          path: artifacts/windows
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: slidev-studio-ai-macos
+          path: artifacts/macos
+
+      - name: Zip macOS App
+        run: |
+          cd artifacts/macos
+          zip -r ../../slidev-studio-ai-macos.zip slidev-studio-ai.app
+          cd ../..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.new_tag }}
+          name: Release ${{ needs.prepare.outputs.new_tag }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          files: |
+            artifacts/windows/*
+            slidev-studio-ai-macos.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

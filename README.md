@@ -1,20 +1,19 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# README
 
-# Run and deploy your AI Studio app
+## About
 
-This contains everything you need to run your app locally.
+This is the official Wails Vue template.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1KVknnloYGoYmZwkaY8tPm6EOHyHOdbIu
+You can configure the project by editing `wails.json`. More information about the project settings can be found
+here: https://wails.io/docs/reference/project-config
 
-## Run Locally
+## Live Development
 
-**Prerequisites:**  Node.js
+To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
+server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
+and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
+to this in your browser, and you can call your Go code from devtools.
 
+## Building
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+To build a redistributable, production mode package, use `wails build`.

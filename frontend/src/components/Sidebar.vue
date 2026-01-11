@@ -5,6 +5,7 @@ import { AppView } from '../types';
 const props = defineProps<{
   activeView: string;
   activeSlideIndex: number;
+  slides?: { id: number; label: string }[];
 }>();
 
 const emit = defineEmits<{
@@ -14,12 +15,8 @@ const emit = defineEmits<{
 
 const isPlanner = computed(() => props.activeView === AppView.PLANNER);
 
-const slides = [
-  { id: 0, label: '01: 项目介绍' },
-  { id: 1, label: '02: 核心功能' },
-  { id: 2, label: '03: AI 生成' },
-  { id: 3, label: '04: 交互组件' }
-];
+// Fallback if not provided, though App.vue should provide it
+const displaySlides = computed(() => props.slides || []);
 
 const onNavigate = (view: string) => {
   emit('navigate', view);
@@ -81,7 +78,7 @@ const onSelectSlide = (id: number) => {
           <div class="text-[#90a4cb] text-[10px] font-bold mb-3 uppercase tracking-widest opacity-60">幻灯片结构</div>
           <div class="space-y-1">
             <div
-              v-for="slide in slides"
+              v-for="slide in displaySlides"
               :key="slide.id"
               @click="() => {
                 onSelectSlide(slide.id);

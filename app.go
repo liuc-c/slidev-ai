@@ -19,10 +19,11 @@ type App struct {
 	tools        *slidev.Tools
 	slidevServer *slidev.Server
 	port         string
+	version      string
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
+func NewApp(version string) *App {
 	// Initialize config
 	_, _ = config.Load()
 
@@ -37,6 +38,7 @@ func NewApp() *App {
 		tools:        tools,
 		aiService:    aiSvc,
 		slidevServer: slidev.NewServer(),
+		version:      version,
 	}
 }
 
@@ -105,6 +107,16 @@ func (a *App) CreateProject(name string) error {
 	return a.tools.CreateProject(name)
 }
 
+// ReadSlides reads the content of slides.md
+func (a *App) ReadSlides() (string, error) {
+	return a.tools.ReadSlides()
+}
+
+// SaveSlides saves content to slides.md
+func (a *App) SaveSlides(content string) error {
+	return a.tools.SaveSlides("slides.md", content)
+}
+
 // GenerateOutline calls the AI service to generate an outline
 func (a *App) GenerateOutline(topic string) ([]ai.OutlineItem, error) {
 	return a.aiService.GenerateOutline(topic)
@@ -122,5 +134,12 @@ func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
 // CheckForUpdates checks if there is a new version available
 func (a *App) CheckForUpdates() (*updater.UpdateInfo, error) {
 	// TODO: Replace with actual owner/repo
-	return updater.CheckForUpdates("v0.48.0-studio", "slidev-studio-ai", "slidev-studio-ai")
+	return updater.CheckForUpdates(a.version, "slidev-studio-ai", "slidev-studio-ai")
+}
+
+// shutdown is called when the app terminates
+func (a *App) shutdown(ctx context.Context) {
+	if a.slidevServer != nil {
+		_ = a.slidevServer.Stop()
+	}
 }

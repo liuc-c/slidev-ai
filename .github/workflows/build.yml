@@ -7,7 +7,24 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+      changelog: ${{ steps.tag_version.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -37,13 +54,13 @@ jobs:
     - name: Build Windows Installer
       if: matrix.os == 'windows-latest'
       run: |
-        wails build -nsis
+        wails build -nsis -ldflags "-X main.Version=${{ needs.prepare.outputs.new_tag }}"
       shell: bash
 
     - name: Build macOS App
       if: matrix.os == 'macos-latest'
       run: |
-        wails build
+        wails build -ldflags "-X main.Version=${{ needs.prepare.outputs.new_tag }}"
       shell: bash
 
     - name: Upload Artifacts (Windows)
@@ -69,13 +86,6 @@ jobs:
         with:
             fetch-depth: 0
 
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: patch
-
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -97,9 +107,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
+          tag_name: ${{ needs.prepare.outputs.new_tag }}
+          name: Release ${{ needs.prepare.outputs.new_tag }}
+          body: ${{ needs.prepare.outputs.changelog }}
           files: |
             artifacts/windows/*
             slidev-studio-ai-macos.zip

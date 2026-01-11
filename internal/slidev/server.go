@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"sync"
 )
 
@@ -37,7 +38,13 @@ func (s *Server) Start(dir string) (string, error) {
 	// We use a specific port range or let it pick.
 	// For simplicity, let's try to let it pick or specify one.
 	// But to capture the port, we need to read stdout.
-	cmd := exec.CommandContext(ctx, "npx", "slidev", "--open", "false")
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/C", "npx", "slidev", "--open", "false")
+		cmd.SysProcAttr = getSysProcAttr()
+	} else {
+		cmd = exec.CommandContext(ctx, "npx", "slidev", "--open", "false")
+	}
 	cmd.Dir = dir
 
 	// Prepare to read stdout/stderr
@@ -100,6 +107,9 @@ func (s *Server) Start(dir string) (string, error) {
 }
 
 func (s *Server) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.cancel != nil {
 		s.cancel()
 	}

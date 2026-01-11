@@ -8,51 +8,16 @@ const props = defineProps<{
   activeView: string; // 'editor_code' or 'editor_ai'
   projectName: string;
   activeSlideIndex: number;
+  slidevUrl?: string; // Passed from App.vue
 }>();
+
+const markdown = defineModel<string>('markdown');
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
 }>();
 
 const mode = computed(() => props.activeView === AppView.EDITOR_CODE ? 'code' : 'ai');
-const slidevUrl = ref('');
-const markdown = ref(`---
-theme: seriph
-background: https://picsum.photos/id/10/1920/1080
-class: text-center
-highlighter: shiki
-lineNumbers: true
----
-
-# Slidev Studio AI
-
-AI 驱动的现代化演示文稿引擎。
-
----
-layout: default
----
-
-## 核心功能
-
-- 📝 **Markdown 驱动** - 专注内容创作
-- 🧑‍💻 **开发者友好** - 支持代码片段与实时预览
-- 🤖 **AI 协作** - 自动生成大纲与内容优化
-
----
-layout: section
----
-
-## AI 生成内容
-
-点击左侧大纲即可快速切换幻灯片。
-
----
-layout: default
----
-
-## 交互组件
-
-这是一个模拟的交互演示。`);
 
 // AI Chat Integration
 const input = ref('');
@@ -122,20 +87,6 @@ const handleSubmit = async (e?: Event) => {
 onMounted(async () => {
   try {
     serverPort.value = await App.GetServerPort();
-
-    // Start or get Slidev Server URL
-    try {
-        // Try getting existing URL first
-        let url = await App.GetSlidevUrl();
-        if (!url) {
-            // Start it
-            url = await App.StartSlidevServer();
-        }
-        slidevUrl.value = url;
-    } catch (err) {
-        console.error("Failed to start/get slidev server", err);
-    }
-
   } catch (e) {
     console.error("Failed to get server port", e);
   }
@@ -143,6 +94,7 @@ onMounted(async () => {
 
 // Computed for preview
 const previewData = computed(() => {
+  if (!markdown.value) return { title: '无内容', description: '', count: 0 };
   const slides = markdown.value.split('---').map(s => s.trim()).filter(s => s);
   const contentSlides = slides.filter(s => !s.startsWith('theme:'));
 

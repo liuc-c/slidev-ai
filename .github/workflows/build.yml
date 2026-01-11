@@ -1,0 +1,61 @@
+name: Build Wails App
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        check-latest: true
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install Wails
+      run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+    - name: Build Windows Installer
+      if: matrix.os == 'windows-latest'
+      run: |
+        wails build -nsis
+      shell: bash
+
+    - name: Build macOS App
+      if: matrix.os == 'macos-latest'
+      run: |
+        wails build
+      shell: bash
+
+    - name: Upload Artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: slidev-studio-ai-windows
+        path: build/bin/*
+
+    - name: Upload Artifacts (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: slidev-studio-ai-macos
+        path: build/bin/slidev-studio-ai.app

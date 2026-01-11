@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useChat } from 'ai/vue';
 import { AppView } from '../types';
+import * as App from '../../wailsjs/go/main/App';
 
 const props = defineProps<{
   activeView: string; // 'editor_code' or 'editor_ai'
@@ -52,17 +54,55 @@ layout: default
 
 这是一个模拟的交互演示。`);
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  isThinking?: boolean;
-}
+// AI Chat Integration
+const { messages, input, handleSubmit, append } = useChat({
+  api: '', // Will be set dynamically
+  initialMessages: [
+    { id: 'welcome', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
+  ]
+});
 
-const aiInput = ref('');
-const chatHistory = ref<ChatMessage[]>([
-  { role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
-]);
+// We need to fetch the port from backend
+const serverPort = ref('');
 
+onMounted(async () => {
+  try {
+    serverPort.value = await App.GetServerPort();
+    // Re-initialize useChat with correct API?
+    // useChat takes options. api cannot be changed reactively easily in some versions,
+    // but usually it's a fetch call.
+    // Actually, useChat options are static.
+    // We might need to provide a custom fetch function that uses the port.
+  } catch (e) {
+    console.error("Failed to get server port", e);
+  }
+});
+
+// Custom fetch to support dynamic port
+// Or simply reload page? No.
+// Let's use a computed property for the endpoint if supported, but usually not.
+// The `api` option is a string.
+// We can use a proxy or just hardcode if port was fixed, but port is random.
+// Workaround: Modify the `input` to `useChat` to use a custom fetcher.
+
+const { messages: chatMessages, input: chatInput, handleSubmit: sendChat, isLoading } = useChat({
+  fetch: async (url, options) => {
+    // Ignore the url passed by useChat (defaults to /api/chat)
+    // Construct our own URL
+    const port = serverPort.value;
+    if (!port) {
+       console.error("Server port not ready");
+       return new Response("Backend not ready", { status: 500 });
+    }
+    const endpoint = `http://localhost:${port}/api/chat`;
+    return fetch(endpoint, options);
+  },
+  initialMessages: [
+    { id: '1', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
+  ]
+});
+
+// Computed for preview
 const previewData = computed(() => {
   const slides = markdown.value.split('---').map(s => s.trim()).filter(s => s);
   const contentSlides = slides.filter(s => !s.startsWith('theme:'));
@@ -77,30 +117,6 @@ const previewData = computed(() => {
 
   return { title, description, count: contentSlides.length };
 });
-
-const handleSendAi = () => {
-  if (!aiInput.value.trim()) return;
-
-  const userMsg: ChatMessage = { role: 'user', content: aiInput.value };
-  chatHistory.value.push(userMsg);
-  const inputContent = aiInput.value;
-  aiInput.value = '';
-
-  // Mock AI "Thinking" and response
-  setTimeout(() => {
-    chatHistory.value.push({ role: 'assistant', content: '', isThinking: true });
-
-    setTimeout(() => {
-      chatHistory.value = chatHistory.value.filter(m => !m.isThinking);
-      chatHistory.value.push({
-        role: 'assistant',
-        content: `我已经为你更新了幻灯片。我在内容中添加了关于 "${inputContent}" 的相关信息，并优化了标题排版。`
-      });
-
-      markdown.value = markdown.value + `\n\n--- \n\n# AI 生成内容\n\n针对你的请求：${inputContent}\n\n- 自动生成的观点 1\n- 自动生成的观点 2`;
-    }, 1500);
-  }, 500);
-};
 
 </script>
 
@@ -175,7 +191,7 @@ const handleSendAi = () => {
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6">
-          <div v-for="(msg, idx) in chatHistory" :key="idx" :class="`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-3`">
+          <div v-for="msg in chatMessages" :key="msg.id" :class="`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-3`">
             <div v-if="msg.role === 'assistant'" class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0 shadow-sm shadow-emerald-500/10">
               <span class="material-symbols-outlined text-[20px]">memory</span>
             </div>
@@ -185,37 +201,42 @@ const handleSendAi = () => {
                   ? 'bg-primary text-white rounded-tr-none'
                   : 'bg-[#222f49] text-slate-200 rounded-tl-none'
               }`">
-                <template v-if="msg.isThinking">
-                    <div class="flex items-center gap-2 italic text-[#90a4cb]">
-                      <span class="size-1.5 bg-primary rounded-full animate-bounce"></span>
-                      <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                      <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                      思考中...
-                    </div>
-                </template>
-                <template v-else>
                   {{ msg.content }}
-                </template>
               </div>
             </div>
           </div>
+
+           <!-- Loading indicator -->
+           <div v-if="isLoading" class="flex justify-start items-start gap-3">
+             <div class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0 shadow-sm shadow-emerald-500/10">
+              <span class="material-symbols-outlined text-[20px]">memory</span>
+            </div>
+             <div class="bg-[#222f49] text-slate-200 rounded-tl-none p-4 rounded-xl text-sm shadow-lg">
+                <div class="flex items-center gap-2 italic text-[#90a4cb]">
+                    <span class="size-1.5 bg-primary rounded-full animate-bounce"></span>
+                    <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    思考中...
+                </div>
+             </div>
+           </div>
         </div>
 
         <div class="p-4 border-t border-border-dark bg-background-dark/30 shrink-0">
-          <div class="relative">
+          <form @submit="sendChat" class="relative">
             <textarea
-              v-model="aiInput"
-              @keydown.enter.prevent="!$event.shiftKey && handleSendAi()"
+              v-model="chatInput"
+              @keydown.enter.prevent="!$event.shiftKey && sendChat($event)"
               class="w-full bg-[#0a0f18] border border-border-dark rounded-xl p-4 pr-12 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600 resize-none font-sans min-h-[100px] shadow-inner"
               placeholder="尝试说：'把标题改成赛博朋克风格'..."
             ></textarea>
             <button
-              @click="handleSendAi"
+              type="submit"
               class="absolute bottom-3 right-3 bg-primary text-white size-10 rounded-lg flex items-center justify-center hover:bg-primary/80 transition-all shadow-lg shadow-primary/20 active:scale-95"
             >
               <span class="material-symbols-outlined text-[22px]">send</span>
             </button>
-          </div>
+          </form>
         </div>
       </aside>
     </template>

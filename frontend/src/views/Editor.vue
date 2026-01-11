@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useChat } from 'ai/vue';
+import { useChat } from '@ai-sdk/vue';
 import { AppView } from '../types';
 import * as App from '../../wailsjs/go/main/App';
 

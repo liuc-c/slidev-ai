@@ -10,8 +10,3 @@ frontend/dist
 *.dmg
 *.pkg
 *.app
-
-# Backup artifacts
-react-backup/node_modules
-react-backup/dist
-react-backup/build

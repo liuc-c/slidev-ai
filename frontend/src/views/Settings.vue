@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import * as App from '../../wailsjs/go/main/App';
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
@@ -8,8 +9,17 @@ const emit = defineEmits<{
 const models = ref([
   { name: 'llama3:8b', size: '4.7GB', selected: true },
   { name: 'mistral:latest', size: '4.1GB', selected: false },
-  { name: 'codellama:7b', size: '3.8GB', selected: false },
+  { name: 'gpt-4o', size: 'Cloud', selected: false },
 ]);
+
+const config = ref({
+  ai: {
+    provider: 'ollama',
+    apiKey: '',
+    baseUrl: '',
+    model: 'llama3:8b'
+  }
+});
 
 const menuItems = ref([
   { icon: 'person', label: '常规', active: false },
@@ -18,6 +28,31 @@ const menuItems = ref([
   { icon: 'extension', label: '插件', active: false },
   { icon: 'terminal', label: '系统信息', active: false },
 ]);
+
+onMounted(async () => {
+  try {
+    const cfg = await App.GetSettings();
+    if (cfg && cfg.ai) {
+      config.value = cfg;
+      // Update selected model in UI if possible
+    }
+  } catch (e) {
+    console.error("Failed to load settings", e);
+  }
+});
+
+const saveSettings = async () => {
+  try {
+    // If provider is ollama, ensure baseurl
+    if (config.value.ai.provider === 'ollama' && !config.value.ai.baseUrl) {
+      config.value.ai.baseUrl = 'http://localhost:11434/v1';
+    }
+    await App.SaveSettings(config.value);
+    emit('update:activeView', 'dashboard');
+  } catch (e) {
+    console.error("Failed to save settings", e);
+  }
+};
 
 const onClose = () => {
   emit('update:activeView', 'dashboard');
@@ -51,7 +86,7 @@ const onClose = () => {
             <div>
               <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">提供商</label>
               <div class="relative max-w-md">
-                <select class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-3 text-sm text-white appearance-none focus:ring-1 focus:ring-primary focus:border-primary">
+                <select v-model="config.ai.provider" class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-3 text-sm text-white appearance-none focus:ring-1 focus:ring-primary focus:border-primary">
                   <option value="ollama">Ollama (本地)</option>
                   <option value="openai">OpenAI (云端)</option>
                   <option value="deepseek">DeepSeek (云端)</option>
@@ -60,18 +95,23 @@ const onClose = () => {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl opacity-40">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl opacity-100">
               <div>
                 <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">API 密钥</label>
-                <input class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" disabled placeholder="sk-••••••••••••••••" type="password" />
+                <input v-model="config.ai.apiKey" class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" placeholder="sk-••••••••••••••••" type="password" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">代理地址</label>
-                <input class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" disabled placeholder="https://api.openai.com/v1" type="text" />
+                <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">API 地址</label>
+                <input v-model="config.ai.baseUrl" class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" placeholder="https://api.openai.com/v1" type="text" />
               </div>
             </div>
 
-            <div class="bg-panel-dark border border-border-dark rounded-2xl p-8 space-y-8 shadow-2xl">
+            <div>
+                 <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">模型名称</label>
+                 <input v-model="config.ai.model" class="w-full max-w-md bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" placeholder="gpt-4o or llama3" type="text" />
+            </div>
+
+            <div v-if="config.ai.provider === 'ollama'" class="bg-panel-dark border border-border-dark rounded-2xl p-8 space-y-8 shadow-2xl">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
                   <div class="size-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.6)]"></div>
@@ -79,65 +119,11 @@ const onClose = () => {
                 </div>
                 <span class="text-[10px] font-bold bg-green-500/10 text-green-500 px-3 py-1 rounded border border-green-500/20 uppercase tracking-widest">已连接</span>
               </div>
-
-              <div>
-                <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-4">可用的本地模型</label>
-                <div class="grid grid-cols-1 gap-3">
-                  <label
-                    v-for="model in models"
-                    :key="model.name"
-                    :class="`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer ${model.selected ? 'border-primary bg-primary/5 shadow-lg shadow-primary/5' : 'border-border-dark hover:border-[#4b6392]'}`"
-                  >
-                    <input type="radio" :checked="model.selected" name="model" class="text-primary focus:ring-primary bg-background-dark border-border-dark" />
-                    <div class="flex-1 flex items-center justify-between">
-                      <span :class="`text-sm font-bold font-mono ${model.selected ? 'text-white' : 'text-[#90a4cb]'}`">{{ model.name }}</span>
-                      <span class="text-[10px] text-[#90a4cb] font-bold font-mono">{{ model.size }}</span>
-                    </div>
-                  </label>
-                </div>
-                <button class="mt-6 flex items-center gap-2 text-[10px] text-primary font-bold uppercase tracking-widest hover:underline transition-all">
-                  <span class="material-symbols-outlined text-sm">download</span>
-                  拉取更多模型
-                </button>
-              </div>
             </div>
           </div>
         </section>
 
         <hr class="border-border-dark opacity-30" />
-
-        <section>
-          <div class="mb-6">
-            <h2 class="text-xl font-bold text-white mb-2">全局引擎</h2>
-            <p class="text-xs text-[#90a4cb] font-bold uppercase tracking-widest">运行时环境和 CLI 版本</p>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-panel-dark/50 border border-border-dark rounded-xl p-5 flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
-                  <span class="material-symbols-outlined">javascript</span>
-                </div>
-                <div>
-                  <p class="text-[10px] font-bold text-[#90a4cb] uppercase font-mono tracking-widest">Node.js 版本</p>
-                  <p class="text-white font-mono text-sm font-bold">v20.12.2</p>
-                </div>
-              </div>
-              <span class="text-[10px] text-green-500 font-bold px-2 py-0.5 bg-green-500/10 rounded uppercase">LTS</span>
-            </div>
-            <div class="bg-panel-dark/50 border border-border-dark rounded-xl p-5 flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                  <span class="material-symbols-outlined">terminal</span>
-                </div>
-                <div>
-                  <p class="text-[10px] font-bold text-[#90a4cb] uppercase font-mono tracking-widest">Slidev CLI</p>
-                  <p class="text-white font-mono text-sm font-bold">v0.48.0</p>
-                </div>
-              </div>
-              <button class="text-[10px] text-primary font-bold hover:underline uppercase">检查更新</button>
-            </div>
-          </div>
-        </section>
 
         <div class="flex items-center justify-end gap-4 pt-10">
           <button
@@ -147,7 +133,7 @@ const onClose = () => {
             取消
           </button>
           <button
-            @click="onClose"
+            @click="saveSettings"
             class="px-10 py-2.5 rounded-xl bg-primary text-white text-xs font-bold shadow-2xl shadow-primary/30 hover:bg-primary/90 transition-all uppercase tracking-widest"
           >
             保存配置

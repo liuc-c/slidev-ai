@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"slidev-studio-ai/internal/ai"
 	"slidev-studio-ai/internal/config"
 	"slidev-studio-ai/internal/slidev"
 	"slidev-studio-ai/internal/updater"
@@ -15,10 +14,8 @@ import (
 // App struct
 type App struct {
 	ctx          context.Context
-	aiService    *ai.Service
 	tools        *slidev.Tools
 	slidevServer *slidev.Server
-	port         string
 	version      string
 }
 
@@ -31,12 +28,8 @@ func NewApp(version string) *App {
 	cwd, _ := os.Getwd()
 	tools := slidev.NewTools(cwd)
 
-	// Initialize AI Service
-	aiSvc := ai.NewService(tools)
-
 	return &App{
 		tools:        tools,
-		aiService:    aiSvc,
 		slidevServer: slidev.NewServer(),
 		version:      version,
 	}
@@ -47,24 +40,18 @@ func NewApp(version string) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Start AI Server
-	port, err := a.aiService.StartInBackground()
-	if err != nil {
-		fmt.Printf("Failed to start AI server: %v\n", err)
-	} else {
-		fmt.Printf("AI Server started on port %s\n", port)
-		a.port = port
-	}
-
 	// Create default deck if not exists
 	if _, err := os.Stat(filepath.Join(a.tools.WorkingDir, "slides.md")); os.IsNotExist(err) {
 		a.tools.CreateDeck("Slidev Studio AI", "seriph")
 	}
 }
 
-// StartSlidevServer starts the slidev server and returns the URL
-func (a *App) StartSlidevServer() (string, error) {
-	return a.slidevServer.Start(a.tools.WorkingDir)
+// StartSlidevServer starts the slidev server for a specific file and returns the URL
+func (a *App) StartSlidevServer(filename string) (string, error) {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.slidevServer.Start(a.tools.WorkingDir, filename)
 }
 
 // GetSlidevUrl returns the running slidev server URL
@@ -75,11 +62,6 @@ func (a *App) GetSlidevUrl() string {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
-}
-
-// GetServerPort returns the AI server port
-func (a *App) GetServerPort() string {
-	return a.port
 }
 
 // SaveSettings saves the AI configuration
@@ -107,28 +89,35 @@ func (a *App) CreateProject(name string) error {
 	return a.tools.CreateProject(name)
 }
 
-// ReadSlides reads the content of slides.md
-func (a *App) ReadSlides() (string, error) {
-	return a.tools.ReadSlides()
+// ReadSlides reads the content of a specific markdown file
+func (a *App) ReadSlides(filename string) (string, error) {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.tools.ReadSlides(filename)
 }
 
-// SaveSlides saves content to slides.md
-func (a *App) SaveSlides(content string) error {
-	return a.tools.SaveSlides("slides.md", content)
-}
-
-// GenerateOutline calls the AI service to generate an outline
-func (a *App) GenerateOutline(topic string) ([]ai.OutlineItem, error) {
-	return a.aiService.GenerateOutline(topic)
-}
-
-// GenerateSlides calls the AI service to generate slides from an outline and saves them
-func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
-	content, err := a.aiService.GenerateSlides(outline)
-	if err != nil {
-		return err
+// SaveSlides saves content to a specific markdown file
+func (a *App) SaveSlides(filename string, content string) error {
+	if filename == "" {
+		filename = "slides.md"
 	}
 	return a.tools.SaveSlides(filename, content)
+}
+
+// UpdatePage updates a specific slide page content (Tool Call from AI)
+func (a *App) UpdatePage(filename string, pageIndex int, markdown string) error {
+	return a.tools.UpdatePage(filename, pageIndex, markdown)
+}
+
+// InsertPage inserts a new slide after a specific index (Tool Call from AI)
+func (a *App) InsertPage(filename string, afterIndex int, layout string) error {
+	return a.tools.InsertPage(filename, afterIndex, layout)
+}
+
+// ApplyTheme applies a global theme to the presentation (Tool Call from AI)
+func (a *App) ApplyTheme(filename string, themeName string) error {
+	return a.tools.ApplyGlobalTheme(filename, themeName)
 }
 
 // CheckForUpdates checks if there is a new version available

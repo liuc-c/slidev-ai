@@ -2,10 +2,14 @@
 import { computed } from 'vue';
 import { AppView } from '../types';
 
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
+
 const props = defineProps<{
   activeView: string;
   projectName: string;
+  slidevUrl?: string;
 }>();
+
 
 const emit = defineEmits<{
   (e: 'navigate', view: string): void;
@@ -20,6 +24,12 @@ const isEditor = computed(() => {
 const onNavigate = (view: string) => {
   emit('navigate', view);
 };
+
+const onPresent = () => {
+  if (!props.slidevUrl) return;
+  BrowserOpenURL(`${props.slidevUrl}/`);
+};
+
 </script>
 
 <template>
@@ -86,10 +96,16 @@ const onNavigate = (view: string) => {
           <span class="material-symbols-outlined text-lg">settings</span>
           <span class="text-[11px] font-bold">项目设置</span>
         </button>
-        <button class="flex items-center gap-2 px-4 h-8 bg-primary text-white rounded-lg shadow-md shadow-primary/20 hover:bg-primary/90 transition-colors">
+        <button
+          class="flex items-center gap-2 px-4 h-8 bg-primary text-white rounded-lg shadow-md shadow-primary/20 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!slidevUrl"
+          @click="onPresent"
+          :title="slidevUrl ? '在浏览器中打开预览' : '预览服务未就绪'"
+        >
           <span class="material-symbols-outlined text-lg">play_arrow</span>
           <span class="text-[11px] font-bold">演示</span>
         </button>
+
       </template>
     </div>
   </header>

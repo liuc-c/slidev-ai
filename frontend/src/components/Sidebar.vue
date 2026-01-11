@@ -6,7 +6,9 @@ const props = defineProps<{
   activeView: string;
   activeSlideIndex: number;
   slides?: { id: number; label: string }[];
+  projectName?: string;
 }>();
+
 
 const emit = defineEmits<{
   (e: 'navigate', view: string): void;
@@ -63,15 +65,16 @@ const onSelectSlide = (id: number) => {
             本地文件
           </div>
           <div class="space-y-1">
-            <div class="flex items-center gap-2 px-3 py-2 text-xs text-white bg-primary/10 border-l-2 border-primary rounded-r cursor-pointer">
+            <div class="flex items-center gap-2 px-3 py-2 text-xs text-white bg-primary/10 border-l-2 border-primary rounded-r cursor-default">
               <span class="material-symbols-outlined text-sm text-primary">description</span>
-              slides.md
+              {{ projectName || 'slides.md' }}
             </div>
             <div class="flex items-center gap-2 px-3 py-2 text-xs text-[#90a4cb] hover:bg-[#222f49]/30 rounded cursor-pointer transition-colors">
               <span class="material-symbols-outlined text-sm">settings_suggest</span>
               slidev.config.ts
             </div>
           </div>
+
         </div>
 
         <div class="px-4 py-2 border-t border-border-dark/50">

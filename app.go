@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"slidev-studio-ai/internal/ai"
 	"slidev-studio-ai/internal/config"
 	"slidev-studio-ai/internal/slidev"
 	"slidev-studio-ai/internal/updater"
@@ -15,7 +14,6 @@ import (
 // App struct
 type App struct {
 	ctx          context.Context
-	aiService    *ai.Service
 	tools        *slidev.Tools
 	slidevServer *slidev.Server
 	version      string
@@ -30,12 +28,8 @@ func NewApp(version string) *App {
 	cwd, _ := os.Getwd()
 	tools := slidev.NewTools(cwd)
 
-	// Initialize AI Service
-	aiSvc := ai.NewService(tools)
-
 	return &App{
 		tools:        tools,
-		aiService:    aiSvc,
 		slidevServer: slidev.NewServer(),
 		version:      version,
 	}
@@ -115,20 +109,6 @@ func (a *App) InsertPage(afterIndex int, layout string) error {
 // ApplyTheme applies a global theme to the presentation (Tool Call from AI)
 func (a *App) ApplyTheme(themeName string) error {
 	return a.tools.ApplyGlobalTheme(themeName)
-}
-
-// GenerateOutline calls the AI service to generate an outline
-func (a *App) GenerateOutline(topic string) ([]ai.OutlineItem, error) {
-	return a.aiService.GenerateOutline(topic)
-}
-
-// GenerateSlides calls the AI service to generate slides from an outline and saves them
-func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
-	content, err := a.aiService.GenerateSlides(outline)
-	if err != nil {
-		return err
-	}
-	return a.tools.SaveSlides(filename, content)
 }
 
 // CheckForUpdates checks if there is a new version available

@@ -3,6 +3,9 @@ import { ref, computed, onMounted, reactive } from 'vue';
 import { AppView } from '../types';
 import * as App from '../../wailsjs/go/main/App';
 import { config } from '../../wailsjs/go/models';
+import { getChatStream } from '../lib/ai';
+import { tool } from 'ai';
+import { z } from 'zod';
 
 const props = defineProps<{
   activeView: string; // 'editor_code' or 'editor_ai'
@@ -37,86 +40,45 @@ const input = ref('');
 const isLoading = ref(false);
 
 // System prompt with available tools
-const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优化演示文稿。
+const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优化演示文稿。回复时请使用中文，保持简洁友好。`;
 
-你可以执行以下操作（通过 function calling）：
-1. update_page - 更新指定页面的 Markdown 内容
-2. insert_page - 在指定位置后插入新页面  
-3. apply_theme - 应用全局主题
-
-当用户请求修改幻灯片时，使用相应的工具来执行操作。
-回复时请使用中文，保持简洁友好。`;
-
-// Tool definitions for OpenAI
-const toolDefinitions = [
-  {
-    type: 'function',
-    function: {
-      name: 'update_page',
-      description: '更新指定页面的 Markdown 内容',
-      parameters: {
-        type: 'object',
-        properties: {
-          pageIndex: { type: 'number', description: '页面索引（从0开始）' },
-          markdown: { type: 'string', description: '新的 Markdown 内容' }
-        },
-        required: ['pageIndex', 'markdown']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'insert_page',
-      description: '在指定位置后插入新页面',
-      parameters: {
-        type: 'object',
-        properties: {
-          afterIndex: { type: 'number', description: '在此索引之后插入（从0开始）' },
-          layout: { type: 'string', description: '页面布局类型（default, center, two-cols 等）' }
-        },
-        required: ['afterIndex', 'layout']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'apply_theme',
-      description: '应用全局主题到演示文稿',
-      parameters: {
-        type: 'object',
-        properties: {
-          themeName: { type: 'string', description: '主题名称（seriph, apple-basic, default 等）' }
-        },
-        required: ['themeName']
-      }
-    }
-  }
-];
-
-// Execute tool call
-const executeTool = async (name: string, args: any): Promise<string> => {
-  try {
-    switch (name) {
-      case 'update_page':
-        await App.UpdatePage(args.pageIndex, args.markdown);
-        return `✅ 已更新第 ${args.pageIndex + 1} 页`;
-      case 'insert_page':
-        await App.InsertPage(args.afterIndex, args.layout);
-        return `✅ 已在第 ${args.afterIndex + 1} 页后插入新页面`;
-      case 'apply_theme':
-        await App.ApplyTheme(args.themeName);
-        return `✅ 已应用主题: ${args.themeName}`;
-      default:
-        return '❌ 未知工具';
-    }
-  } catch (error) {
-    return `❌ 执行失败: ${error}`;
-  }
+// Tool definitions for Vercel AI SDK
+const tools = {
+  update_page: tool({
+    description: '更新指定页面的 Markdown 内容',
+    parameters: z.object({
+      pageIndex: z.number().describe('页面索引（从0开始）'),
+      markdown: z.string().describe('新的 Markdown 内容'),
+    }),
+    execute: async ({ pageIndex, markdown }) => {
+      await App.UpdatePage(pageIndex, markdown);
+      return `✅ 已更新第 ${pageIndex + 1} 页`;
+    },
+  }),
+  insert_page: tool({
+    description: '在指定位置后插入新页面',
+    parameters: z.object({
+      afterIndex: z.number().describe('在此索引之后插入（从0开始）'),
+      layout: z.string().describe('页面布局类型（default, center, two-cols 等）'),
+    }),
+    execute: async ({ afterIndex, layout }) => {
+      await App.InsertPage(afterIndex, layout);
+      return `✅ 已在第 ${afterIndex + 1} 页后插入新页面`;
+    },
+  }),
+  apply_theme: tool({
+    description: '应用全局主题到演示文稿',
+    parameters: z.object({
+      themeName: z.string().describe('主题名称（seriph, apple-basic, default 等）'),
+    }),
+    execute: async ({ themeName }) => {
+      await App.ApplyTheme(themeName);
+      return `✅ 已应用主题: ${themeName}`;
+    },
+  }),
 };
 
-// Send message to OpenAI
+// Send message to AI using SDK
 const handleSubmit = async (e?: Event) => {
   if (e) e.preventDefault();
   if (!input.value.trim() || isLoading.value) return;
@@ -126,7 +88,6 @@ const handleSubmit = async (e?: Event) => {
     return;
   }
   
-  const cfg = aiConfig.value.ai;
   const userMessage = input.value.trim();
   input.value = '';
   
@@ -140,74 +101,38 @@ const handleSubmit = async (e?: Event) => {
   isLoading.value = true;
   
   try {
-    // Build API URL
-    let apiUrl = 'https://api.openai.com/v1/chat/completions';
-    if (cfg.baseUrl) {
-      apiUrl = cfg.baseUrl.replace(/\/$/, '') + '/chat/completions';
-    }
-    
-    // Build messages for API
+    // Build messages for SDK
+    const history = messages.value.map(m => ({ role: m.role, content: m.content }));
     const apiMessages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `当前幻灯片内容：\n\`\`\`markdown\n${props.markdown}\n\`\`\`\n\n用户请求：${userMessage}` }
+      ...history.slice(0, -1),
+      { role: 'user' as const, content: `当前幻灯片内容：\n\`\`\`markdown\n${props.markdown}\n\`\`\`\n\n用户请求：${userMessage}` }
     ];
     
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${cfg.apiKey}`
-      },
-      body: JSON.stringify({
-        model: cfg.model || 'gpt-4o-mini',
-        messages: apiMessages,
-        tools: toolDefinitions,
-        tool_choice: 'auto'
-      })
+    const result = await getChatStream(aiConfig.value, apiMessages, systemPrompt, tools);
+    
+    let fullContent = '';
+    const assistantMsgId = (Date.now() + 1).toString();
+    messages.value.push({
+      id: assistantMsgId,
+      role: 'assistant',
+      content: ''
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 错误 (${response.status}): ${errorText}`);
+    for await (const delta of result.textStream) {
+      fullContent += delta;
+      const msg = messages.value.find(m => m.id === assistantMsgId);
+      if (msg) msg.content = fullContent;
     }
 
-    const data = await response.json();
-    const choice = data.choices?.[0];
+    const finalResult = await result.toDataStreamResponse(); // This ensures tools are executed and resolved
+    // Since we're using execute in tools, they run during the stream processing if supported or after.
+    // Wait for all tool executions to finish
+    await result.steps;
     
-    if (!choice) {
-      throw new Error('API 返回数据格式错误');
-    }
-    
-    const assistantMessage = choice.message;
+    // Refresh markdown after potential tool execution
+    const newContent = await App.ReadSlides();
+    emit('update:markdown', newContent);
 
-    // Handle tool calls
-    if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-      const toolResults: string[] = [];
-      
-      for (const toolCall of assistantMessage.tool_calls) {
-        const args = JSON.parse(toolCall.function.arguments);
-        const result = await executeTool(toolCall.function.name, args);
-        toolResults.push(result);
-      }
-      
-      // Refresh markdown after tool execution
-      const newContent = await App.ReadSlides();
-      emit('update:markdown', newContent);
-      
-      // Add assistant response with tool results
-      messages.value.push({
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: toolResults.join('\n') + (assistantMessage.content ? `\n\n${assistantMessage.content}` : '\n\n操作已完成！')
-      });
-    } else {
-      // Regular text response
-      messages.value.push({
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: assistantMessage.content || '(无响应)'
-      });
-    }
   } catch (error) {
     console.error('AI request failed:', error);
     messages.value.push({

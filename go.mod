@@ -4,10 +4,7 @@ go 1.24.0
 
 toolchain go1.24.3
 
-require (
-	github.com/sashabaranov/go-openai v1.41.2
-	github.com/wailsapp/wails/v2 v2.11.0
-)
+require github.com/wailsapp/wails/v2 v2.11.0
 
 require (
 	github.com/bep/debounce v1.2.1 // indirect

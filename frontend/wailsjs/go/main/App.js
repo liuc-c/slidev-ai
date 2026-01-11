@@ -14,14 +14,6 @@ export function CreateProject(arg1) {
   return window['go']['main']['App']['CreateProject'](arg1);
 }
 
-export function GenerateOutline(arg1) {
-  return window['go']['main']['App']['GenerateOutline'](arg1);
-}
-
-export function GenerateSlides(arg1, arg2) {
-  return window['go']['main']['App']['GenerateSlides'](arg1, arg2);
-}
-
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }

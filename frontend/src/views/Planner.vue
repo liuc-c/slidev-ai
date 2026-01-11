@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { OutlineItem } from '../types';
+import * as App from '../../wailsjs/go/main/App';
+import { generateOutline as aiGenerateOutline, generateSlides as aiGenerateSlides } from '../lib/ai';
 
 const props = defineProps<{
   projectName?: string;
@@ -14,55 +16,58 @@ const steps = ref<OutlineItem[]>([]);
 const topic = ref('');
 const isLoading = ref(false);
 const loadingMessage = ref('');
+const config = ref<any>(null);
+
+onMounted(async () => {
+  try {
+    config.value = await App.GetSettings();
+  } catch (e) {
+    console.error("Failed to load settings", e);
+  }
+});
 
 const generateOutline = async () => {
   if (!topic.value) return;
+  if (!config.value?.ai?.apiKey) {
+    alert("请先在设置中配置 AI API Key");
+    return;
+  }
+
   isLoading.value = true;
   loadingMessage.value = 'AI 正在构思大纲...';
   try {
-    if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
-      steps.value = await (window as any).go.main.App.GenerateOutline(topic.value);
-    } else {
-      // Mock for development without backend
-      console.warn("Backend not available");
-    }
-  } catch (e) {
+    steps.value = await aiGenerateOutline(config.value, topic.value);
+  } catch (e: any) {
     console.error(e);
-    alert("大纲生成失败");
+    alert(e.message || "大纲生成失败");
   } finally {
     isLoading.value = false;
   }
 };
 
-const addStep = () => {
-  const nextId = (steps.value.length + 1).toString().padStart(2, '0');
-  steps.value.push({
-    id: nextId,
-    title: '新幻灯片标题',
-    type: 'secondary',
-    children: [{ label: '待补充内容...', type: 'content' }]
-  });
-};
-
 const handleGenerate = async () => {
   if (steps.value.length === 0) return;
+  if (!config.value?.ai?.apiKey) {
+    alert("请先在设置中配置 AI API Key");
+    return;
+  }
 
   isLoading.value = true;
   loadingMessage.value = 'AI 正在撰写幻灯片内容...';
 
   try {
-    if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
-      const filename = props.projectName || 'slides.md';
-      await (window as any).go.main.App.GenerateSlides(filename, steps.value);
-      emit('update:activeView', 'editor_code');
-    }
-  } catch (e) {
+    const filename = props.projectName || 'slides.md';
+    const content = await aiGenerateSlides(config.value, steps.value);
+    await App.SaveSlides(content);
+    emit('update:activeView', 'editor_code');
+  } catch (e: any) {
     console.error(e);
-    alert("幻灯片生成失败");
+    alert(e.message || "幻灯片生成失败");
   } finally {
     isLoading.value = false;
   }
 };
+
 
 const removeStep = (id: string) => {
   steps.value = steps.value.filter(s => s.id !== id);

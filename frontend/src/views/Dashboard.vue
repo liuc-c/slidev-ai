@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const props = defineProps<{
   projectName?: string; // Not used in this component but passed by router-view
@@ -12,25 +12,35 @@ const emit = defineEmits<{
 }>();
 
 const viewMode = ref<'grid' | 'list'>('grid');
+const projects = ref<any[]>([]);
 
-const projects = [
-  { id: '1', name: 'RAG_Tech_Share.md', updated: '2小时前', img: 'https://picsum.photos/seed/slide1/400/225' },
-  { id: '2', name: 'Intro_to_Kubernetes.md', updated: '5小时前', img: 'https://picsum.photos/seed/slide2/400/225' },
-  { id: '3', name: 'Q4_Roadmap.md', updated: '1天前', img: 'https://picsum.photos/seed/slide3/400/225' },
-  { id: '4', name: 'AI_Agents_Deep_Dive.md', updated: '3天前', img: 'https://picsum.photos/seed/slide4/400/225' },
-  { id: '5', name: 'Frontend_Performance.md', updated: '1周前', img: 'https://picsum.photos/seed/slide5/400/225' },
-  { id: '6', name: 'System_Design_v2.md', updated: '2周前', img: 'https://picsum.photos/seed/slide6/400/225' },
-];
+const fetchProjects = async () => {
+  if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
+    projects.value = await (window as any).go.main.App.ListProjects();
+  }
+};
+
+onMounted(() => {
+  fetchProjects();
+});
 
 const onOpenProject = (name: string) => {
   emit('update:projectName', name);
   emit('update:activeView', 'editor_code');
 };
 
-const onCreateProject = () => {
-  emit('update:projectName', 'untitled_project.md');
-  // Need to reset markdown content here if I had a global store.
-  // For now, Editor component manages its own local state or we assume fresh start.
+const onCreateProject = async () => {
+  const name = prompt("请输入新项目名称 (例如: my-slides)", "untitled_project");
+  if (!name) return;
+
+  const finalName = name.endsWith('.md') ? name : `${name}.md`;
+
+  if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
+    await (window as any).go.main.App.CreateProject(finalName);
+    await fetchProjects();
+  }
+
+  emit('update:projectName', finalName);
   emit('update:activeSlideIndex', 0);
   emit('update:activeView', 'planner');
 };

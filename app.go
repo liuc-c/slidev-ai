@@ -9,14 +9,16 @@ import (
 	"slidev-studio-ai/internal/ai"
 	"slidev-studio-ai/internal/config"
 	"slidev-studio-ai/internal/slidev"
+	"slidev-studio-ai/internal/updater"
 )
 
 // App struct
 type App struct {
-	ctx       context.Context
-	aiService *ai.Service
-	tools     *slidev.Tools
-	port      string
+	ctx          context.Context
+	aiService    *ai.Service
+	tools        *slidev.Tools
+	slidevServer *slidev.Server
+	port         string
 }
 
 // NewApp creates a new App application struct
@@ -32,8 +34,9 @@ func NewApp() *App {
 	aiSvc := ai.NewService(tools)
 
 	return &App{
-		tools:     tools,
-		aiService: aiSvc,
+		tools:        tools,
+		aiService:    aiSvc,
+		slidevServer: slidev.NewServer(),
 	}
 }
 
@@ -55,6 +58,16 @@ func (a *App) startup(ctx context.Context) {
 	if _, err := os.Stat(filepath.Join(a.tools.WorkingDir, "slides.md")); os.IsNotExist(err) {
 		a.tools.CreateDeck("Slidev Studio AI", "seriph")
 	}
+}
+
+// StartSlidevServer starts the slidev server and returns the URL
+func (a *App) StartSlidevServer() (string, error) {
+	return a.slidevServer.Start(a.tools.WorkingDir)
+}
+
+// GetSlidevUrl returns the running slidev server URL
+func (a *App) GetSlidevUrl() string {
+	return a.slidevServer.GetURL()
 }
 
 // Greet returns a greeting for the given name
@@ -104,4 +117,10 @@ func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
 		return err
 	}
 	return a.tools.SaveSlides(filename, content)
+}
+
+// CheckForUpdates checks if there is a new version available
+func (a *App) CheckForUpdates() (*updater.UpdateInfo, error) {
+	// TODO: Replace with actual owner/repo
+	return updater.CheckForUpdates("v0.48.0-studio", "slidev-studio-ai", "slidev-studio-ai")
 }

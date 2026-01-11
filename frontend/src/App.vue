@@ -65,7 +65,7 @@ const setActiveSlideIndex = (index: number) => {
       </main>
     </div>
 
-    <Footer :activeView="activeView" />
+    <Footer :activeView="activeView" @navigate="handleNavigate" />
   </div>
 </template>
 

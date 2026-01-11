@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const mode = computed(() => props.activeView === AppView.EDITOR_CODE ? 'code' : 'ai');
-
+const slidevUrl = ref('');
 const markdown = ref(`---
 theme: seriph
 background: https://picsum.photos/id/10/1920/1080
@@ -122,6 +122,20 @@ const handleSubmit = async (e?: Event) => {
 onMounted(async () => {
   try {
     serverPort.value = await App.GetServerPort();
+
+    // Start or get Slidev Server URL
+    try {
+        // Try getting existing URL first
+        let url = await App.GetSlidevUrl();
+        if (!url) {
+            // Start it
+            url = await App.StartSlidevServer();
+        }
+        slidevUrl.value = url;
+    } catch (err) {
+        console.error("Failed to start/get slidev server", err);
+    }
+
   } catch (e) {
     console.error("Failed to get server port", e);
   }
@@ -161,23 +175,19 @@ const previewData = computed(() => {
         </div>
       </div>
 
-      <div class="flex-1 p-12 flex items-center justify-center bg-[#0b0f1a] overflow-auto custom-scrollbar">
-        <div class="w-full max-w-4xl aspect-video bg-white rounded-xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative transition-transform duration-500 ease-in-out">
-            <div class="flex-1 bg-gradient-to-br from-primary to-[#001c54] p-16 flex flex-col justify-center text-left">
-            <div class="inline-block px-3 py-1 bg-white/10 rounded border border-white/20 text-white/80 text-[10px] font-bold uppercase tracking-widest mb-8 w-fit animate-pulse">
-              Live Preview
-            </div>
-            <h1 class="text-6xl font-display font-bold text-white mb-8 leading-tight drop-shadow-lg">{{ previewData.title }}</h1>
-            <p class="text-white/70 text-xl max-w-2xl leading-relaxed">{{ previewData.description }}</p>
-
-            <div class="absolute bottom-10 right-10 opacity-10">
-              <span class="material-symbols-outlined text-white text-[160px]">auto_awesome</span>
-            </div>
+      <div class="flex-1 bg-[#0b0f1a] overflow-hidden relative">
+          <iframe
+            v-if="slidevUrl"
+            :src="`${slidevUrl}/${activeSlideIndex+1}`"
+            class="w-full h-full border-none"
+            allow="fullscreen; clipboard-write"
+          ></iframe>
+          <div v-else class="flex items-center justify-center h-full text-slate-500">
+             <div class="flex flex-col items-center gap-4">
+                 <span class="material-symbols-outlined text-4xl animate-spin">sync</span>
+                 <p>启动 Slidev 预览服务中...</p>
+             </div>
           </div>
-          <div class="h-1.5 bg-white/10 w-full overflow-hidden">
-            <div class="h-full bg-primary transition-all duration-300" :style="`width: ${((activeSlideIndex + 1) / previewData.count) * 100}%`"></div>
-          </div>
-        </div>
       </div>
     </section>
 

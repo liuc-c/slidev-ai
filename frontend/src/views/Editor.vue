@@ -6,6 +6,7 @@ import { config } from '../../wailsjs/go/models';
 import { getChatStream } from '../lib/ai';
 import { tool } from 'ai';
 import { z } from 'zod';
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
 
 const props = defineProps<{
   activeView: string; // 'editor_code' or 'editor_ai'
@@ -51,7 +52,7 @@ const tools = {
       markdown: z.string().describe('新的 Markdown 内容'),
     }),
     execute: async ({ pageIndex, markdown }) => {
-      await App.UpdatePage(pageIndex, markdown);
+      await App.UpdatePage(props.projectName, pageIndex, markdown);
       return `✅ 已更新第 ${pageIndex + 1} 页`;
     },
   }),
@@ -62,7 +63,7 @@ const tools = {
       layout: z.string().describe('页面布局类型（default, center, two-cols 等）'),
     }),
     execute: async ({ afterIndex, layout }) => {
-      await App.InsertPage(afterIndex, layout);
+      await App.InsertPage(props.projectName, afterIndex, layout);
       return `✅ 已在第 ${afterIndex + 1} 页后插入新页面`;
     },
   }),
@@ -72,7 +73,7 @@ const tools = {
       themeName: z.string().describe('主题名称（seriph, apple-basic, default 等）'),
     }),
     execute: async ({ themeName }) => {
-      await App.ApplyTheme(themeName);
+      await App.ApplyTheme(props.projectName, themeName);
       return `✅ 已应用主题: ${themeName}`;
     },
   }),
@@ -124,13 +125,11 @@ const handleSubmit = async (e?: Event) => {
       if (msg) msg.content = fullContent;
     }
 
-    const finalResult = await result.toDataStreamResponse(); // This ensures tools are executed and resolved
-    // Since we're using execute in tools, they run during the stream processing if supported or after.
-    // Wait for all tool executions to finish
+    const finalResult = await result.toDataStreamResponse(); 
     await result.steps;
     
     // Refresh markdown after potential tool execution
-    const newContent = await App.ReadSlides();
+    const newContent = await App.ReadSlides(props.projectName);
     emit('update:markdown', newContent);
 
   } catch (error) {
@@ -184,24 +183,29 @@ const previewData = computed(() => {
           <span class="text-[10px] text-[#90a4cb] font-bold">页面 {{ activeSlideIndex + 1 }} / {{ previewData.count }}</span>
         </div>
         <div class="flex items-center gap-2 text-[#90a4cb]">
-          <button class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors"><span class="material-symbols-outlined text-lg">desktop_windows</span></button>
-          <button class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors"><span class="material-symbols-outlined text-lg">refresh</span></button>
+          <button 
+            v-if="slidevUrl"
+            @click="BrowserOpenURL(`${slidevUrl}/${activeSlideIndex+1}`)"
+            class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors"
+            title="在浏览器中打开"
+          >
+            <span class="material-symbols-outlined text-lg">open_in_new</span>
+          </button>
         </div>
       </div>
 
-      <div class="flex-1 bg-[#0b0f1a] overflow-hidden relative">
-          <iframe
-            v-if="slidevUrl"
-            :src="`${slidevUrl}/${activeSlideIndex+1}`"
-            class="w-full h-full border-none"
-            allow="fullscreen; clipboard-write"
-          ></iframe>
-          <div v-else class="flex items-center justify-center h-full text-slate-500">
-             <div class="flex flex-col items-center gap-4">
-                 <span class="material-symbols-outlined text-4xl animate-spin">sync</span>
-                 <p>启动 Slidev 预览服务中...</p>
+      <div class="flex-1 bg-[#0b0f1a] overflow-hidden relative flex flex-col items-center justify-center">
+          <iframe v-if="slidevUrl" :src="`${slidevUrl}/${activeSlideIndex+1}`" class="w-full h-full border-none" allow="fullscreen; clipboard-write"></iframe>
+          
+          <template v-else>
+             <div class="flex flex-col items-center gap-6 animate-pulse">
+                 <div class="relative">
+                    <div class="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+                    <span class="material-symbols-outlined text-5xl text-primary animate-spin relative z-10">sync</span>
+                 </div>
+                 <p class="text-slate-500 text-sm font-medium tracking-wider uppercase">启动预览服务中...</p>
              </div>
-          </div>
+          </template>
       </div>
     </section>
 

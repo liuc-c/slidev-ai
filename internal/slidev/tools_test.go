@@ -21,7 +21,8 @@ func TestTools(t *testing.T) {
 		t.Fatalf("CreateDeck failed: %v", err)
 	}
 
-	content, err := tools.ReadSlides()
+	content, err := tools.ReadSlides("slides.md")
+
 	if err != nil {
 		t.Fatalf("ReadSlides failed: %v", err)
 	}
@@ -30,12 +31,12 @@ func TestTools(t *testing.T) {
 	}
 
 	// Test InsertPage
-	err = tools.InsertPage(0, "center") // Insert after page 0 (which is slide 1)
+	err = tools.InsertPage("slides.md", 0, "center") // Insert after page 0 (which is slide 1)
 	if err != nil {
 		t.Fatalf("InsertPage failed: %v", err)
 	}
 
-	content, err = tools.ReadSlides()
+	content, err = tools.ReadSlides("slides.md")
 	if err != nil {
 		t.Fatalf("ReadSlides failed: %v", err)
 	}
@@ -48,12 +49,12 @@ func TestTools(t *testing.T) {
 	// InsertPage logic was: insert after pageIndex.
 	// If I insert after 0, it becomes page 1 (technically).
 
-	err = tools.UpdatePage(0, "# Updated Slide 1\nNew Content")
+	err = tools.UpdatePage("slides.md", 0, "# Updated Slide 1\nNew Content")
 	if err != nil {
 		t.Fatalf("UpdatePage failed: %v", err)
 	}
 
-	content, err = tools.ReadSlides()
+	content, err = tools.ReadSlides("slides.md")
 	if err != nil {
 		t.Fatalf("ReadSlides failed: %v", err)
 	}
@@ -62,11 +63,11 @@ func TestTools(t *testing.T) {
 	}
 
 	// Test ApplyGlobalTheme
-	err = tools.ApplyGlobalTheme("new-theme")
+	err = tools.ApplyGlobalTheme("slides.md", "new-theme")
 	if err != nil {
 		t.Fatalf("ApplyGlobalTheme failed: %v", err)
 	}
-	content, err = tools.ReadSlides()
+	content, err = tools.ReadSlides("slides.md")
 	if err != nil {
 		t.Fatalf("ReadSlides failed: %v", err)
 	}

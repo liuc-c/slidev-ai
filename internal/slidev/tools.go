@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Project represents a Slidev project file
+
 type Project struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -19,6 +21,7 @@ type Project struct {
 // Tools provides methods to manipulate Slidev projects
 type Tools struct {
 	WorkingDir string
+	mu         sync.Mutex
 }
 
 func NewTools(workingDir string) *Tools {
@@ -27,7 +30,10 @@ func NewTools(workingDir string) *Tools {
 
 // ListProjects scans the working directory for .md files
 func (t *Tools) ListProjects() ([]Project, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	var projects []Project
+
 	files, err := os.ReadDir(t.WorkingDir)
 	if err != nil {
 		return nil, err
@@ -49,6 +55,8 @@ func (t *Tools) ListProjects() ([]Project, error) {
 
 // CreateProject creates a new .md file
 func (t *Tools) CreateProject(filename string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if !strings.HasSuffix(filename, ".md") {
 		filename += ".md"
 	}
@@ -83,6 +91,8 @@ Content
 
 // CreateDeck initializes a new deck (Legacy/Default support)
 func (t *Tools) CreateDeck(title string, theme string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	// If title doesn't end in .md, we assume it's just the title
 	// But CreateProject expects a filename.
 	// For legacy CreateDeck, we likely want "slides.md" if it's the main deck.
@@ -119,15 +129,21 @@ Content
 
 // SaveSlides overwrites a specific file
 func (t *Tools) SaveSlides(filename string, content string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	path := filepath.Join(t.WorkingDir, filename)
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-
 // UpdatePage updates a specific page content
-func (t *Tools) UpdatePage(pageIndex int, markdown string) error {
-	filename := filepath.Join(t.WorkingDir, "slides.md")
-	data, err := os.ReadFile(filename)
+func (t *Tools) UpdatePage(filename string, pageIndex int, markdown string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if filename == "" {
+		filename = "slides.md"
+	}
+	path := filepath.Join(t.WorkingDir, filename)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -174,13 +190,18 @@ func (t *Tools) UpdatePage(pageIndex int, markdown string) error {
 	parts[targetIndex] = "\n" + markdown + "\n"
 
 	newContent := strings.Join(parts, "---")
-	return os.WriteFile(filename, []byte(newContent), 0644)
+	return os.WriteFile(path, []byte(newContent), 0644)
 }
 
 // InsertPage inserts a new page after a specific index
-func (t *Tools) InsertPage(afterIndex int, layout string) error {
-	filename := filepath.Join(t.WorkingDir, "slides.md")
-	data, err := os.ReadFile(filename)
+func (t *Tools) InsertPage(filename string, afterIndex int, layout string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if filename == "" {
+		filename = "slides.md"
+	}
+	path := filepath.Join(t.WorkingDir, filename)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -265,18 +286,23 @@ func (t *Tools) InsertPage(afterIndex int, layout string) error {
 		pos := matches[insertPosIndex][0] // Start of `---`
 
 		newContent := content[:pos] + insertion + content[pos:]
-		return os.WriteFile(filename, []byte(newContent), 0644)
+		return os.WriteFile(path, []byte(newContent), 0644)
 	} else {
 		// Append to end
 		newContent := content + insertion
-		return os.WriteFile(filename, []byte(newContent), 0644)
+		return os.WriteFile(path, []byte(newContent), 0644)
 	}
 }
 
 // ApplyGlobalTheme changes the theme in frontmatter
-func (t *Tools) ApplyGlobalTheme(themeName string) error {
-	filename := filepath.Join(t.WorkingDir, "slides.md")
-	data, err := os.ReadFile(filename)
+func (t *Tools) ApplyGlobalTheme(filename string, themeName string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if filename == "" {
+		filename = "slides.md"
+	}
+	path := filepath.Join(t.WorkingDir, filename)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -302,12 +328,17 @@ func (t *Tools) ApplyGlobalTheme(themeName string) error {
 	}
 
 	newContent := strings.Replace(content, frontmatter, newFrontmatter, 1)
-	return os.WriteFile(filename, []byte(newContent), 0644)
+	return os.WriteFile(path, []byte(newContent), 0644)
 }
 
-func (t *Tools) ReadSlides() (string, error) {
-	filename := filepath.Join(t.WorkingDir, "slides.md")
-	data, err := os.ReadFile(filename)
+func (t *Tools) ReadSlides(filename string) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if filename == "" {
+		filename = "slides.md"
+	}
+	path := filepath.Join(t.WorkingDir, filename)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}

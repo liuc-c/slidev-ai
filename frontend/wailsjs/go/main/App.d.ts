@@ -4,7 +4,7 @@ import {updater} from '../models';
 import {config} from '../models';
 import {slidev} from '../models';
 
-export function ApplyTheme(arg1:string):Promise<void>;
+export function ApplyTheme(arg1:string,arg2:string):Promise<void>;
 
 export function CheckForUpdates():Promise<updater.UpdateInfo>;
 
@@ -16,16 +16,16 @@ export function GetSlidevUrl():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
 
-export function InsertPage(arg1:number,arg2:string):Promise<void>;
+export function InsertPage(arg1:string,arg2:number,arg3:string):Promise<void>;
 
 export function ListProjects():Promise<Array<slidev.Project>>;
 
-export function ReadSlides():Promise<string>;
+export function ReadSlides(arg1:string):Promise<string>;
 
 export function SaveSettings(arg1:config.Config):Promise<void>;
 
-export function SaveSlides(arg1:string):Promise<void>;
+export function SaveSlides(arg1:string,arg2:string):Promise<void>;
 
-export function StartSlidevServer():Promise<string>;
+export function StartSlidevServer(arg1:string):Promise<string>;
 
-export function UpdatePage(arg1:number,arg2:string):Promise<void>;
+export function UpdatePage(arg1:string,arg2:number,arg3:string):Promise<void>;

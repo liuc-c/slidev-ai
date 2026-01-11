@@ -46,9 +46,12 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-// StartSlidevServer starts the slidev server and returns the URL
-func (a *App) StartSlidevServer() (string, error) {
-	return a.slidevServer.Start(a.tools.WorkingDir)
+// StartSlidevServer starts the slidev server for a specific file and returns the URL
+func (a *App) StartSlidevServer(filename string) (string, error) {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.slidevServer.Start(a.tools.WorkingDir, filename)
 }
 
 // GetSlidevUrl returns the running slidev server URL
@@ -86,29 +89,35 @@ func (a *App) CreateProject(name string) error {
 	return a.tools.CreateProject(name)
 }
 
-// ReadSlides reads the content of slides.md
-func (a *App) ReadSlides() (string, error) {
-	return a.tools.ReadSlides()
+// ReadSlides reads the content of a specific markdown file
+func (a *App) ReadSlides(filename string) (string, error) {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.tools.ReadSlides(filename)
 }
 
-// SaveSlides saves content to slides.md
-func (a *App) SaveSlides(content string) error {
-	return a.tools.SaveSlides("slides.md", content)
+// SaveSlides saves content to a specific markdown file
+func (a *App) SaveSlides(filename string, content string) error {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.tools.SaveSlides(filename, content)
 }
 
 // UpdatePage updates a specific slide page content (Tool Call from AI)
-func (a *App) UpdatePage(pageIndex int, markdown string) error {
-	return a.tools.UpdatePage(pageIndex, markdown)
+func (a *App) UpdatePage(filename string, pageIndex int, markdown string) error {
+	return a.tools.UpdatePage(filename, pageIndex, markdown)
 }
 
 // InsertPage inserts a new slide after a specific index (Tool Call from AI)
-func (a *App) InsertPage(afterIndex int, layout string) error {
-	return a.tools.InsertPage(afterIndex, layout)
+func (a *App) InsertPage(filename string, afterIndex int, layout string) error {
+	return a.tools.InsertPage(filename, afterIndex, layout)
 }
 
 // ApplyTheme applies a global theme to the presentation (Tool Call from AI)
-func (a *App) ApplyTheme(themeName string) error {
-	return a.tools.ApplyGlobalTheme(themeName)
+func (a *App) ApplyTheme(filename string, themeName string) error {
+	return a.tools.ApplyGlobalTheme(filename, themeName)
 }
 
 // CheckForUpdates checks if there is a new version available

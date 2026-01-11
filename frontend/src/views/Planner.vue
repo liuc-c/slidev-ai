@@ -58,7 +58,7 @@ const handleGenerate = async () => {
   try {
     const filename = props.projectName || 'slides.md';
     const content = await aiGenerateSlides(config.value, steps.value);
-    await App.SaveSlides(content);
+    await App.SaveSlides(filename, content);
     emit('update:activeView', 'editor_code');
   } catch (e: any) {
     console.error(e);

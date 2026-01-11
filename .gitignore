@@ -1,3 +1,17 @@
 build/bin
 node_modules
 frontend/dist
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.dmg
+*.pkg
+*.app
+
+# Backup artifacts
+react-backup/node_modules
+react-backup/dist
+react-backup/build

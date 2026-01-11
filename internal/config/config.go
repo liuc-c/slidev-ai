@@ -7,7 +7,7 @@ import (
 )
 
 type AIConfig struct {
-	Provider string `json:"provider"` // "openai", "deepseek", "ollama"
+	Provider string `json:"provider"` // "openai", "openai-compatible", "google", "anthropic"
 	APIKey   string `json:"apiKey"`
 	BaseURL  string `json:"baseUrl"`
 	Model    string `json:"model"`

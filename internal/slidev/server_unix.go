@@ -5,5 +5,5 @@ package slidev
 import "syscall"
 
 func getSysProcAttr() *syscall.SysProcAttr {
-	return nil
+	return &syscall.SysProcAttr{Setpgid: true}
 }

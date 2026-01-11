@@ -19,31 +19,24 @@ const router = useRouter();
 // Parse markdown to get slide structure
 const slides = computed(() => {
   if (!markdown.value) return [];
-  // Simple splitting by ---
+  
+  // Standard Slidev separator
   const rawSlides = markdown.value.split(/^---$/m);
 
-  // Filter out frontmatter if it exists (first item usually empty or frontmatter)
-  // Standard Slidev:
-  // --- (optional)
-  // frontmatter
-  // ---
-  // slide 1
-
-  let validSlides = [];
+  let contentSlides = [];
+  // Slidev usually has frontmatter first. 
+  // If it starts with ---, parts[0] is empty, parts[1] is frontmatter, parts[2] is slide 1.
   let startIndex = 0;
-
-  // Check frontmatter
-  if (markdown.value.startsWith('---')) {
-     // Skip frontmatter
-     startIndex = 2; // parts[0] is empty, parts[1] is frontmatter
+  if (markdown.value.trim().startsWith('---')) {
+      startIndex = 2;
+  } else {
+      startIndex = 0;
   }
 
-  // Actually simpler: split, then map.
-  // We need to match the logic of Editor's preview count.
-  const allParts = rawSlides.map(s => s.trim()).filter(s => s);
-  const contentSlides = allParts.filter(s => !s.startsWith('theme:')); // Crude check for frontmatter
+  const allParts = rawSlides.map(s => s.trim());
+  const actualSlides = allParts.slice(startIndex).filter(s => s.length > 0);
 
-  return contentSlides.map((s, i) => {
+  return actualSlides.map((s, i) => {
     const lines = s.split('\n');
     const title = lines.find(l => l.startsWith('# '))?.replace('# ', '') ||
                   lines.find(l => l.startsWith('## '))?.replace('## ', '') ||
@@ -54,6 +47,7 @@ const slides = computed(() => {
     };
   });
 });
+
 
 // Update activeView based on route
 router.afterEach((to) => {
@@ -81,25 +75,51 @@ watch(markdown, (newValue) => {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-        await App.SaveSlides(newValue);
+        await App.SaveSlides(activeProjectName.value, newValue);
     } catch (e) {
         console.error("Failed to save slides", e);
     }
   }, 1000); // 1s debounce
 });
 
+// Watch for project name changes to reload content and server
+watch(activeProjectName, async (newName, oldName) => {
+  if (!newName || newName === oldName) return;
+  try {
+    markdown.value = await App.ReadSlides(newName);
+    activeSlideIndex.value = 0;
+    
+    // Start server for new file
+    slidevUrl.value = ""; // Show loading
+    const url = await App.StartSlidevServer(newName);
+    
+    // Ensure we are still on the same project when response arrives
+    if (activeProjectName.value === newName) {
+      slidevUrl.value = url;
+    }
+  } catch (e) {
+    console.error("Failed to switch project", e);
+  }
+});
+
 onMounted(async () => {
   try {
-    // Start server once
-    const url = await App.StartSlidevServer();
-    slidevUrl.value = url;
+    // 1. Read content immediately (use current activeProjectName)
+    markdown.value = await App.ReadSlides(activeProjectName.value);
 
-    // Read content
-    markdown.value = await App.ReadSlides();
+    // 2. Start server in parallel (don't block the UI)
+    App.StartSlidevServer(activeProjectName.value).then(url => {
+      slidevUrl.value = url;
+    }).catch(e => {
+      console.error("Failed to start slidev server", e);
+    });
+    
   } catch (e) {
     console.error("Failed to init app", e);
   }
 });
+
+
 
 </script>
 
@@ -108,8 +128,10 @@ onMounted(async () => {
     <Header
       :activeView="activeView"
       :projectName="activeProjectName"
+      :slidevUrl="slidevUrl"
       @navigate="handleNavigate"
     />
+
 
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
@@ -119,7 +141,9 @@ onMounted(async () => {
         :activeSlideIndex="activeSlideIndex"
         @selectSlide="setActiveSlideIndex"
         :slides="slides"
+        :projectName="activeProjectName"
       />
+
 
       <main class="flex-1 flex overflow-hidden">
         <router-view
@@ -129,7 +153,7 @@ onMounted(async () => {
           v-model:markdown="markdown"
           :slidevUrl="slidevUrl"
           @update:activeView="handleNavigate"
-          @update:projectName="(n) => activeProjectName = n"
+          @update:projectName="(n) => (activeProjectName = n)"
           @update:activeSlideIndex="setActiveSlideIndex"
         ></router-view>
       </main>

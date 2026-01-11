@@ -87,8 +87,13 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+    
+    # Bundle resources: Node.js and node_modules
+    SetOutPath "$INSTDIR\resources"
+    File /r "..\..\..\build\windows\resources\*.*"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles
@@ -102,7 +107,9 @@ Section "uninstall"
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
+    RMDir /r "$INSTDIR\resources"
     RMDir /r $INSTDIR
+
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"

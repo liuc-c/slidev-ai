@@ -14,12 +14,13 @@ const models = ref([
 
 const config = ref({
   ai: {
-    provider: 'ollama',
+    provider: 'openai',
     apiKey: '',
     baseUrl: '',
-    model: 'llama3:8b'
+    model: 'gpt-4o'
   }
 });
+
 
 const menuItems = ref([
   { icon: 'person', label: '常规', active: false },
@@ -43,16 +44,13 @@ onMounted(async () => {
 
 const saveSettings = async () => {
   try {
-    // If provider is ollama, ensure baseurl
-    if (config.value.ai.provider === 'ollama' && !config.value.ai.baseUrl) {
-      config.value.ai.baseUrl = 'http://localhost:11434/v1';
-    }
     await App.SaveSettings(config.value);
     emit('update:activeView', 'dashboard');
   } catch (e) {
-    console.error("Failed to save settings", e);
+    console.error("Failed to load settings", e);
   }
 };
+
 
 const onClose = () => {
   emit('update:activeView', 'dashboard');
@@ -87,10 +85,12 @@ const onClose = () => {
               <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">提供商</label>
               <div class="relative max-w-md">
                 <select v-model="config.ai.provider" class="w-full bg-panel-dark border border-border-dark rounded-lg px-4 py-3 text-sm text-white appearance-none focus:ring-1 focus:ring-primary focus:border-primary">
-                  <option value="ollama">Ollama (本地)</option>
-                  <option value="openai">OpenAI (云端)</option>
-                  <option value="deepseek">DeepSeek (云端)</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="openai-compatible">OpenAI Compatible</option>
+                  <option value="google">Google Gemini</option>
+                  <option value="anthropic">Anthropic Claude</option>
                 </select>
+
                 <span class="material-symbols-outlined absolute right-3 top-3 text-[#90a4cb] pointer-events-none">expand_more</span>
               </div>
             </div>
@@ -106,20 +106,11 @@ const onClose = () => {
               </div>
             </div>
 
-            <div>
-                 <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">模型名称</label>
-                 <input v-model="config.ai.model" class="w-full max-w-md bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" placeholder="gpt-4o or llama3" type="text" />
-            </div>
+             <div>
+                  <label class="block text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest mb-3">模型名称</label>
+                  <input v-model="config.ai.model" class="w-full max-w-md bg-panel-dark border border-border-dark rounded-lg px-4 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary" placeholder="gpt-4o, claude-3-5-sonnet-latest, or gemini-1.5-pro" type="text" />
+             </div>
 
-            <div v-if="config.ai.provider === 'ollama'" class="bg-panel-dark border border-border-dark rounded-2xl p-8 space-y-8 shadow-2xl">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                  <div class="size-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.6)]"></div>
-                  <span class="font-mono text-sm text-white font-bold tracking-tight">localhost:11434</span>
-                </div>
-                <span class="text-[10px] font-bold bg-green-500/10 text-green-500 px-3 py-1 rounded border border-green-500/20 uppercase tracking-widest">已连接</span>
-              </div>
-            </div>
           </div>
         </section>
 

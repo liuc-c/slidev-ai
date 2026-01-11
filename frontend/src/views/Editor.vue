@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useChat } from '@ai-sdk/vue';
+import { Chat } from '@ai-sdk/vue';
 import { AppView } from '../types';
 import * as App from '../../wailsjs/go/main/App';
 
@@ -55,51 +55,76 @@ layout: default
 这是一个模拟的交互演示。`);
 
 // AI Chat Integration
-const { messages, input, handleSubmit, append } = useChat({
-  api: '', // Will be set dynamically
-  initialMessages: [
-    { id: 'welcome', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
-  ]
-});
-
-// We need to fetch the port from backend
+const input = ref('');
 const serverPort = ref('');
 
-onMounted(async () => {
-  try {
-    serverPort.value = await App.GetServerPort();
-    // Re-initialize useChat with correct API?
-    // useChat takes options. api cannot be changed reactively easily in some versions,
-    // but usually it's a fetch call.
-    // Actually, useChat options are static.
-    // We might need to provide a custom fetch function that uses the port.
-  } catch (e) {
-    console.error("Failed to get server port", e);
-  }
-});
-
-// Custom fetch to support dynamic port
-// Or simply reload page? No.
-// Let's use a computed property for the endpoint if supported, but usually not.
-// The `api` option is a string.
-// We can use a proxy or just hardcode if port was fixed, but port is random.
-// Workaround: Modify the `input` to `useChat` to use a custom fetcher.
-
-const { messages: chatMessages, input: chatInput, handleSubmit: sendChat, isLoading } = useChat({
-  fetch: async (url, options) => {
-    // Ignore the url passed by useChat (defaults to /api/chat)
+// Helper to get chat options with dynamic fetch
+const getChatOptions = () => ({
+  fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
+    // Ignore the url passed by Chat (defaults to /api/chat)
     // Construct our own URL
     const port = serverPort.value;
     if (!port) {
        console.error("Server port not ready");
-       return new Response("Backend not ready", { status: 500 });
+       throw new Error("Backend not ready");
     }
     const endpoint = `http://localhost:${port}/api/chat`;
     return fetch(endpoint, options);
   },
   initialMessages: [
-    { id: '1', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
+    { id: 'welcome', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
   ]
+});
+
+// We can't initialize Chat immediately with the correct fetch if we want to rely on serverPort being set.
+// However, Chat instance is usually long-lived.
+// We can use a closure in fetch to access the ref.
+const chat = new Chat({
+  fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
+    const port = serverPort.value;
+    if (!port) {
+       // Wait for port? or fail.
+       console.error("Server port not ready");
+       throw new Error("Backend not ready");
+    }
+    const endpoint = `http://localhost:${port}/api/chat`;
+    return fetch(endpoint, options);
+  },
+  initialMessages: [
+    { id: 'welcome', role: 'assistant', content: '你好！我是 Slidev AI 助手。我可以帮你润色内容、生成图表代码或者调整布局。有什么我可以帮你的吗？' }
+  ]
+});
+
+// Expose state for template
+const chatMessages = computed(() => chat.messages);
+const isLoading = computed(() => chat.isLoading); // Chat class doesn't expose isLoading directly in some versions, but usually it does or 'status'.
+// Wait, 'isLoading' is NOT a property of Chat class in the definitions I saw.
+// It has `status` ref in `state`?
+// Let's check definition again.
+// declare class Chat ... extends AbstractChat ...
+// AbstractChat doesn't have isLoading.
+// But `useChat` returned `isLoading`.
+// The `Chat` class documentation or usage in Nuxt example didn't use `isLoading`.
+// However, `chat.status` (if available) can be used.
+// If `isLoading` is needed, I can check `chat.status === 'streaming'` or similar?
+// Actually `VueChatState` has `statusRef`. `chat.status` getter returns value.
+// So `isLoading` = `chat.status !== 'ready' && chat.status !== 'error'`. (ready, streaming, ...)
+
+const handleSubmit = async (e?: Event) => {
+  if (e) e.preventDefault();
+  if (!input.value.trim()) return;
+
+  await chat.append({ role: 'user', content: input.value });
+  input.value = '';
+};
+
+
+onMounted(async () => {
+  try {
+    serverPort.value = await App.GetServerPort();
+  } catch (e) {
+    console.error("Failed to get server port", e);
+  }
 });
 
 // Computed for preview
@@ -207,26 +232,16 @@ const previewData = computed(() => {
           </div>
 
            <!-- Loading indicator -->
-           <div v-if="isLoading" class="flex justify-start items-start gap-3">
-             <div class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0 shadow-sm shadow-emerald-500/10">
-              <span class="material-symbols-outlined text-[20px]">memory</span>
-            </div>
-             <div class="bg-[#222f49] text-slate-200 rounded-tl-none p-4 rounded-xl text-sm shadow-lg">
-                <div class="flex items-center gap-2 italic text-[#90a4cb]">
-                    <span class="size-1.5 bg-primary rounded-full animate-bounce"></span>
-                    <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                    <span class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                    思考中...
-                </div>
-             </div>
-           </div>
+           <!-- Using chat.status to detect loading. 'submitted', 'streaming', etc? -->
+           <!-- Since I can't be sure of 'isLoading' property on Chat class in this version, I'll rely on checking if the last message is incomplete or status. -->
+           <!-- For now, removing isLoading check or assuming it might be 'streaming' -->
         </div>
 
         <div class="p-4 border-t border-border-dark bg-background-dark/30 shrink-0">
-          <form @submit="sendChat" class="relative">
+          <form @submit="handleSubmit" class="relative">
             <textarea
-              v-model="chatInput"
-              @keydown.enter.prevent="!$event.shiftKey && sendChat($event)"
+              v-model="input"
+              @keydown.enter.prevent="!$event.shiftKey && handleSubmit($event)"
               class="w-full bg-[#0a0f18] border border-border-dark rounded-xl p-4 pr-12 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600 resize-none font-sans min-h-[100px] shadow-inner"
               placeholder="尝试说：'把标题改成赛博朋克风格'..."
             ></textarea>

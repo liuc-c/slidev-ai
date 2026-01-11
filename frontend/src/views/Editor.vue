@@ -8,51 +8,16 @@ const props = defineProps<{
   activeView: string; // 'editor_code' or 'editor_ai'
   projectName: string;
   activeSlideIndex: number;
+  slidevUrl?: string; // Passed from App.vue
+  markdown: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
+  (e: 'update:markdown', value: string): void;
 }>();
 
 const mode = computed(() => props.activeView === AppView.EDITOR_CODE ? 'code' : 'ai');
-
-const markdown = ref(`---
-theme: seriph
-background: https://picsum.photos/id/10/1920/1080
-class: text-center
-highlighter: shiki
-lineNumbers: true
----
-
-# Slidev Studio AI
-
-AI 驱动的现代化演示文稿引擎。
-
----
-layout: default
----
-
-## 核心功能
-
-- 📝 **Markdown 驱动** - 专注内容创作
-- 🧑‍💻 **开发者友好** - 支持代码片段与实时预览
-- 🤖 **AI 协作** - 自动生成大纲与内容优化
-
----
-layout: section
----
-
-## AI 生成内容
-
-点击左侧大纲即可快速切换幻灯片。
-
----
-layout: default
----
-
-## 交互组件
-
-这是一个模拟的交互演示。`);
 
 // AI Chat Integration
 const input = ref('');
@@ -129,7 +94,8 @@ onMounted(async () => {
 
 // Computed for preview
 const previewData = computed(() => {
-  const slides = markdown.value.split('---').map(s => s.trim()).filter(s => s);
+  if (!props.markdown) return { title: '无内容', description: '', count: 0 };
+  const slides = props.markdown.split('---').map(s => s.trim()).filter(s => s);
   const contentSlides = slides.filter(s => !s.startsWith('theme:'));
 
   const contentSlide = contentSlides[props.activeSlideIndex] || contentSlides[0];
@@ -161,23 +127,19 @@ const previewData = computed(() => {
         </div>
       </div>
 
-      <div class="flex-1 p-12 flex items-center justify-center bg-[#0b0f1a] overflow-auto custom-scrollbar">
-        <div class="w-full max-w-4xl aspect-video bg-white rounded-xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative transition-transform duration-500 ease-in-out">
-            <div class="flex-1 bg-gradient-to-br from-primary to-[#001c54] p-16 flex flex-col justify-center text-left">
-            <div class="inline-block px-3 py-1 bg-white/10 rounded border border-white/20 text-white/80 text-[10px] font-bold uppercase tracking-widest mb-8 w-fit animate-pulse">
-              Live Preview
-            </div>
-            <h1 class="text-6xl font-display font-bold text-white mb-8 leading-tight drop-shadow-lg">{{ previewData.title }}</h1>
-            <p class="text-white/70 text-xl max-w-2xl leading-relaxed">{{ previewData.description }}</p>
-
-            <div class="absolute bottom-10 right-10 opacity-10">
-              <span class="material-symbols-outlined text-white text-[160px]">auto_awesome</span>
-            </div>
+      <div class="flex-1 bg-[#0b0f1a] overflow-hidden relative">
+          <iframe
+            v-if="slidevUrl"
+            :src="`${slidevUrl}/${activeSlideIndex+1}`"
+            class="w-full h-full border-none"
+            allow="fullscreen; clipboard-write"
+          ></iframe>
+          <div v-else class="flex items-center justify-center h-full text-slate-500">
+             <div class="flex flex-col items-center gap-4">
+                 <span class="material-symbols-outlined text-4xl animate-spin">sync</span>
+                 <p>启动 Slidev 预览服务中...</p>
+             </div>
           </div>
-          <div class="h-1.5 bg-white/10 w-full overflow-hidden">
-            <div class="h-full bg-primary transition-all duration-300" :style="`width: ${((activeSlideIndex + 1) / previewData.count) * 100}%`"></div>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -195,7 +157,8 @@ const previewData = computed(() => {
             <span v-for="i in 40" :key="i" :class="i > 30 ? 'opacity-20' : ''">{{ i }}</span>
           </div>
           <textarea
-            v-model="markdown"
+            :value="markdown"
+            @input="(e) => emit('update:markdown', (e.target as HTMLTextAreaElement).value)"
             class="flex-1 bg-transparent border-none focus:ring-0 text-[#79c0ff] p-4 resize-none leading-relaxed custom-scrollbar whitespace-pre font-mono"
             spellcheck="false"
           ></textarea>

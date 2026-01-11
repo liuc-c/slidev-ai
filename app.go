@@ -76,3 +76,32 @@ func (a *App) SaveSettings(cfg config.Config) error {
 func (a *App) GetSettings() config.Config {
 	return config.Get()
 }
+
+// ListProjects returns a list of local projects
+func (a *App) ListProjects() []slidev.Project {
+	projects, err := a.tools.ListProjects()
+	if err != nil {
+		fmt.Printf("Error listing projects: %v\n", err)
+		return []slidev.Project{}
+	}
+	return projects
+}
+
+// CreateProject creates a new project file
+func (a *App) CreateProject(name string) error {
+	return a.tools.CreateProject(name)
+}
+
+// GenerateOutline calls the AI service to generate an outline
+func (a *App) GenerateOutline(topic string) ([]ai.OutlineItem, error) {
+	return a.aiService.GenerateOutline(topic)
+}
+
+// GenerateSlides calls the AI service to generate slides from an outline and saves them
+func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
+	content, err := a.aiService.GenerateSlides(outline)
+	if err != nil {
+		return err
+	}
+	return a.tools.SaveSlides(filename, content)
+}

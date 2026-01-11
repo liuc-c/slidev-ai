@@ -2,42 +2,37 @@
 import { ref } from 'vue';
 import { OutlineItem } from '../types';
 
-const emit = defineEmits<{
-  (e: 'update:activeView', view: string): void;
-  // (e: 'generate', markdown: string): void; // We are handling generation by updating parent potentially, but passing back via event is fine.
-  // Actually the React code updated state directly. Here we can maybe just emit an event to navigate,
-  // and we'd need a way to pass the generated markdown.
-  // Since we don't have a global store set up fully, I'll mock the behavior or just emit an event
-  // that the parent App.vue could handle if we extended it,
-  // but for now I'll just navigate back to Editor.
+const props = defineProps<{
+  projectName?: string;
 }>();
 
-const steps = ref<OutlineItem[]>([
-  {
-    id: '01',
-    title: '标题: Slidev AI 深度解析',
-    type: 'primary',
-    children: [ { label: '副标题: 探索演示文稿的未来', type: 'detail' } ]
-  },
-  {
-    id: '02',
-    title: '介绍: 什么是 Slidev?',
-    type: 'secondary',
-    children: [
-      { label: '内容: 核心优势', type: 'content' },
-      { label: '内容: 技术栈选型', type: 'content' }
-    ]
-  },
-  {
-    id: '03',
-    title: '核心功能演示',
-    type: 'secondary',
-    children: [
-      { label: '内容: 代码实时预览', type: 'content' },
-      { label: '内容: AI 辅助编辑', type: 'content' }
-    ]
-  },
-]);
+const emit = defineEmits<{
+  (e: 'update:activeView', view: string): void;
+}>();
+
+const steps = ref<OutlineItem[]>([]);
+const topic = ref('');
+const isLoading = ref(false);
+const loadingMessage = ref('');
+
+const generateOutline = async () => {
+  if (!topic.value) return;
+  isLoading.value = true;
+  loadingMessage.value = 'AI 正在构思大纲...';
+  try {
+    if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
+      steps.value = await (window as any).go.main.App.GenerateOutline(topic.value);
+    } else {
+      // Mock for development without backend
+      console.warn("Backend not available");
+    }
+  } catch (e) {
+    console.error(e);
+    alert("大纲生成失败");
+  } finally {
+    isLoading.value = false;
+  }
+};
 
 const addStep = () => {
   const nextId = (steps.value.length + 1).toString().padStart(2, '0');
@@ -49,21 +44,24 @@ const addStep = () => {
   });
 };
 
-const handleGenerate = () => {
-  let md = `---
-theme: seriph
-background: https://picsum.photos/id/20/1920/1080
----
-`;
-  steps.value.forEach((step, idx) => {
-    md += `\n# ${step.title}\n\n${step.children.map(c => `- ${c.label}`).join('\n')}\n`;
-    if (idx < steps.value.length - 1) md += `\n---\n`;
-  });
-  // In a real app, we would update the markdown state here.
-  // Since we don't have a shared store connecting Planner to Editor easily without prop drilling or Pinia,
-  // I will just navigate to editor_code.
-  // The Editor component uses its own local state in this migration.
-  emit('update:activeView', 'editor_code');
+const handleGenerate = async () => {
+  if (steps.value.length === 0) return;
+
+  isLoading.value = true;
+  loadingMessage.value = 'AI 正在撰写幻灯片内容...';
+
+  try {
+    if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
+      const filename = props.projectName || 'slides.md';
+      await (window as any).go.main.App.GenerateSlides(filename, steps.value);
+      emit('update:activeView', 'editor_code');
+    }
+  } catch (e) {
+    console.error(e);
+    alert("幻灯片生成失败");
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const removeStep = (id: string) => {
@@ -73,6 +71,12 @@ const removeStep = (id: string) => {
 
 <template>
   <div class="flex-1 flex overflow-hidden">
+    <!-- Loading Overlay -->
+    <div v-if="isLoading" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
+      <p class="text-white font-bold animate-pulse">{{ loadingMessage }}</p>
+    </div>
+
     <main class="flex-1 flex flex-col bg-background-dark relative border-r border-border-dark overflow-hidden">
       <header class="h-14 border-b border-border-dark flex items-center justify-between px-8 bg-panel-dark/50 shrink-0">
         <div class="flex items-center gap-4">
@@ -168,26 +172,18 @@ const removeStep = (id: string) => {
               <span class="material-symbols-outlined text-[18px]">smart_toy</span>
             </div>
             <div class="bg-slate-800/80 border border-border-dark p-4 rounded-xl text-xs leading-relaxed text-slate-300 shadow-md">
-              你好！我是大纲生成助手。我已经根据你的初始要求生成了一个基本大纲。
-              <br/><br/>
-              你可以直接<b>点击标题</b>进行修改，或者在下方提出新的要求，让我为你重新规划。
+              你好！我是大纲生成助手。请输入你想要生成的演示文稿主题。
             </div>
         </div>
 
-        <div class="flex flex-col gap-3">
-          <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">常用优化</h4>
-          <div class="grid grid-cols-2 gap-2">
-            <button class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
-              增加技术深度
+        <div v-if="steps.length === 0" class="flex flex-col gap-3">
+          <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">示例主题</h4>
+          <div class="flex flex-col gap-2">
+            <button @click="topic='React Hooks 深度解析'; generateOutline()" class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
+              React Hooks 深度解析
             </button>
-            <button class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
-              减少演示时间
-            </button>
-            <button class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
-              添加交互提示
-            </button>
-            <button class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
-              更口语化一些
+             <button @click="topic='Q4 产品路线图'; generateOutline()" class="px-3 py-2 rounded-lg bg-background-dark border border-border-dark text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-all text-left">
+              Q4 产品路线图
             </button>
           </div>
         </div>
@@ -195,10 +191,14 @@ const removeStep = (id: string) => {
       <div class="p-4 border-t border-border-dark bg-background-dark/30">
         <div class="relative">
           <textarea
+            v-model="topic"
+            @keydown.enter.prevent="generateOutline"
             class="w-full bg-background-dark border border-border-dark rounded-xl p-4 text-xs text-white focus:ring-1 focus:ring-primary placeholder:text-slate-600 resize-none h-24 shadow-inner"
-            placeholder="提出优化建议，例如：'让整体风格更幽默一点'..."
+            placeholder="输入主题，例如：'Golang 并发编程'..."
           ></textarea>
-          <button class="absolute bottom-3 right-3 bg-primary/20 text-primary size-8 rounded-lg flex items-center justify-center hover:bg-primary hover:text-white transition-all">
+          <button
+            @click="generateOutline"
+            class="absolute bottom-3 right-3 bg-primary/20 text-primary size-8 rounded-lg flex items-center justify-center hover:bg-primary hover:text-white transition-all">
             <span class="material-symbols-outlined text-base">send</span>
           </button>
         </div>

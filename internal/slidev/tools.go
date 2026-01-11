@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+// Project represents a Slidev project file
+type Project struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Updated string `json:"updated"` // Human readable or timestamp
+	Img     string `json:"img"`     // Placeholder for now
+}
+
 // Tools provides methods to manipulate Slidev projects
 type Tools struct {
 	WorkingDir string
@@ -17,18 +25,38 @@ func NewTools(workingDir string) *Tools {
 	return &Tools{WorkingDir: workingDir}
 }
 
-// CreateDeck initializes a new deck
-func (t *Tools) CreateDeck(title string, theme string) error {
-	if theme == "" {
-		theme = "seriph"
+// ListProjects scans the working directory for .md files
+func (t *Tools) ListProjects() ([]Project, error) {
+	var projects []Project
+	files, err := os.ReadDir(t.WorkingDir)
+	if err != nil {
+		return nil, err
 	}
 
-	// Ensure directory exists
-	if err := os.MkdirAll(t.WorkingDir, 0755); err != nil {
-		return err
+	for i, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".md") && file.Name() != "README.md" {
+			info, _ := file.Info()
+			projects = append(projects, Project{
+				ID:      fmt.Sprintf("%d", i),
+				Name:    file.Name(),
+				Updated: info.ModTime().Format("2006-01-02 15:04"),
+				Img:     "https://picsum.photos/seed/" + file.Name() + "/400/225", // Deterministic random image
+			})
+		}
 	}
+	return projects, nil
+}
 
-	filename := filepath.Join(t.WorkingDir, "slides.md")
+// CreateProject creates a new .md file
+func (t *Tools) CreateProject(filename string) error {
+	if !strings.HasSuffix(filename, ".md") {
+		filename += ".md"
+	}
+	// Use CreateDeck logic but for specific filename
+	title := strings.TrimSuffix(filename, ".md")
+	theme := "seriph"
+
+	path := filepath.Join(t.WorkingDir, filename)
 	content := fmt.Sprintf(`---
 theme: %s
 background: https://picsum.photos/id/10/1920/1080
@@ -50,7 +78,18 @@ layout: default
 Content
 `, theme, title)
 
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// SaveSlides overwrites a specific file
+func (t *Tools) SaveSlides(filename string, content string) error {
+	path := filepath.Join(t.WorkingDir, filename)
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// CreateDeck initializes a new deck (Legacy/Default support)
+func (t *Tools) CreateDeck(title string, theme string) error {
+	return t.CreateProject("slides.md")
 }
 
 // UpdatePage updates a specific page content

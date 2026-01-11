@@ -69,9 +69,9 @@ func (s *Server) Start(dir string) (string, error) {
 		defer close(ready)
 		defer close(errChan)
 
-		// Regex to find http://localhost:PORT
-		// Slidev output example: "  > Local:    http://localhost:3030/"
-		re := regexp.MustCompile(`http://localhost:(\d+)`)
+		// Regex to find http://localhost:PORT or http://127.0.0.1:PORT
+		// Slidev output example: "  > Local:    http://localhost:3030/" or " > Local:    http://127.0.0.1:3030/"
+		re := regexp.MustCompile(`http://(?:localhost|127\.0\.0\.1):(\d+)`)
 
 		for scanner.Scan() {
 			line := scanner.Text()

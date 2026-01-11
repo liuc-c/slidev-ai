@@ -9,12 +9,12 @@ const props = defineProps<{
   projectName: string;
   activeSlideIndex: number;
   slidevUrl?: string; // Passed from App.vue
+  markdown: string;
 }>();
-
-const markdown = defineModel<string>('markdown');
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
+  (e: 'update:markdown', value: string): void;
 }>();
 
 const mode = computed(() => props.activeView === AppView.EDITOR_CODE ? 'code' : 'ai');
@@ -94,8 +94,8 @@ onMounted(async () => {
 
 // Computed for preview
 const previewData = computed(() => {
-  if (!markdown.value) return { title: '无内容', description: '', count: 0 };
-  const slides = markdown.value.split('---').map(s => s.trim()).filter(s => s);
+  if (!props.markdown) return { title: '无内容', description: '', count: 0 };
+  const slides = props.markdown.split('---').map(s => s.trim()).filter(s => s);
   const contentSlides = slides.filter(s => !s.startsWith('theme:'));
 
   const contentSlide = contentSlides[props.activeSlideIndex] || contentSlides[0];
@@ -157,7 +157,8 @@ const previewData = computed(() => {
             <span v-for="i in 40" :key="i" :class="i > 30 ? 'opacity-20' : ''">{{ i }}</span>
           </div>
           <textarea
-            v-model="markdown"
+            :value="markdown"
+            @input="(e) => emit('update:markdown', (e.target as HTMLTextAreaElement).value)"
             class="flex-1 bg-transparent border-none focus:ring-0 text-[#79c0ff] p-4 resize-none leading-relaxed custom-scrollbar whitespace-pre font-mono"
             spellcheck="false"
           ></textarea>

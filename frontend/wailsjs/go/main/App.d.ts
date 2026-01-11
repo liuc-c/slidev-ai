@@ -23,6 +23,10 @@ export function Greet(arg1:string):Promise<string>;
 
 export function ListProjects():Promise<Array<slidev.Project>>;
 
+export function ReadSlides():Promise<string>;
+
 export function SaveSettings(arg1:config.Config):Promise<void>;
+
+export function SaveSlides(arg1:string):Promise<void>;
 
 export function StartSlidevServer():Promise<string>;

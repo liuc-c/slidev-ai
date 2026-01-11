@@ -38,8 +38,16 @@ export function ListProjects() {
   return window['go']['main']['App']['ListProjects']();
 }
 
+export function ReadSlides() {
+  return window['go']['main']['App']['ReadSlides']();
+}
+
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SaveSlides(arg1) {
+  return window['go']['main']['App']['SaveSlides'](arg1);
 }
 
 export function StartSlidevServer() {

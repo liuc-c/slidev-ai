@@ -9,18 +9,21 @@ import (
 	"slidev-studio-ai/internal/ai"
 	"slidev-studio-ai/internal/config"
 	"slidev-studio-ai/internal/slidev"
+	"slidev-studio-ai/internal/updater"
 )
 
 // App struct
 type App struct {
-	ctx       context.Context
-	aiService *ai.Service
-	tools     *slidev.Tools
-	port      string
+	ctx          context.Context
+	aiService    *ai.Service
+	tools        *slidev.Tools
+	slidevServer *slidev.Server
+	port         string
+	version      string
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
+func NewApp(version string) *App {
 	// Initialize config
 	_, _ = config.Load()
 
@@ -32,8 +35,10 @@ func NewApp() *App {
 	aiSvc := ai.NewService(tools)
 
 	return &App{
-		tools:     tools,
-		aiService: aiSvc,
+		tools:        tools,
+		aiService:    aiSvc,
+		slidevServer: slidev.NewServer(),
+		version:      version,
 	}
 }
 
@@ -55,6 +60,16 @@ func (a *App) startup(ctx context.Context) {
 	if _, err := os.Stat(filepath.Join(a.tools.WorkingDir, "slides.md")); os.IsNotExist(err) {
 		a.tools.CreateDeck("Slidev Studio AI", "seriph")
 	}
+}
+
+// StartSlidevServer starts the slidev server and returns the URL
+func (a *App) StartSlidevServer() (string, error) {
+	return a.slidevServer.Start(a.tools.WorkingDir)
+}
+
+// GetSlidevUrl returns the running slidev server URL
+func (a *App) GetSlidevUrl() string {
+	return a.slidevServer.GetURL()
 }
 
 // Greet returns a greeting for the given name
@@ -92,6 +107,16 @@ func (a *App) CreateProject(name string) error {
 	return a.tools.CreateProject(name)
 }
 
+// ReadSlides reads the content of slides.md
+func (a *App) ReadSlides() (string, error) {
+	return a.tools.ReadSlides()
+}
+
+// SaveSlides saves content to slides.md
+func (a *App) SaveSlides(content string) error {
+	return a.tools.SaveSlides("slides.md", content)
+}
+
 // GenerateOutline calls the AI service to generate an outline
 func (a *App) GenerateOutline(topic string) ([]ai.OutlineItem, error) {
 	return a.aiService.GenerateOutline(topic)
@@ -104,4 +129,17 @@ func (a *App) GenerateSlides(filename string, outline []ai.OutlineItem) error {
 		return err
 	}
 	return a.tools.SaveSlides(filename, content)
+}
+
+// CheckForUpdates checks if there is a new version available
+func (a *App) CheckForUpdates() (*updater.UpdateInfo, error) {
+	// TODO: Replace with actual owner/repo
+	return updater.CheckForUpdates(a.version, "slidev-studio-ai", "slidev-studio-ai")
+}
+
+// shutdown is called when the app terminates
+func (a *App) shutdown(ctx context.Context) {
+	if a.slidevServer != nil {
+		_ = a.slidevServer.Stop()
+	}
 }

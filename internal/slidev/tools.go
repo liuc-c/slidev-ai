@@ -331,6 +331,17 @@ func (t *Tools) ApplyGlobalTheme(filename string, themeName string) error {
 	return os.WriteFile(path, []byte(newContent), 0644)
 }
 
+// DeleteProject deletes a project file
+func (t *Tools) DeleteProject(filename string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if filename == "" {
+		return fmt.Errorf("filename is required")
+	}
+	path := filepath.Join(t.WorkingDir, filename)
+	return os.Remove(path)
+}
+
 func (t *Tools) ReadSlides(filename string) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

@@ -10,6 +10,8 @@ export function CheckForUpdates():Promise<updater.UpdateInfo>;
 
 export function CreateProject(arg1:string):Promise<void>;
 
+export function DeleteProject(arg1:string):Promise<void>;
+
 export function GetSettings():Promise<config.Config>;
 
 export function GetSlidevUrl():Promise<string>;

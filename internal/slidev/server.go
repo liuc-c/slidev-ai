@@ -118,6 +118,7 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 	// Runtime detection for Slidev and Node
 	nodeExe := "node"
 	slidevBin := ""
+	isProduction := false
 
 	// Check for bundled resources (Production)
 	exePath, _ := os.Executable()
@@ -126,6 +127,7 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 
 	// If resources folder exists, we assume production
 	if _, err := os.Stat(bundledResources); err == nil {
+		isProduction = true
 		// Use bundled node if exists
 		bundledNode := filepath.Join(bundledResources, "node", "node.exe")
 		if _, err := os.Stat(bundledNode); err == nil {
@@ -137,6 +139,14 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 		if _, err := os.Stat(bundledSlidev); err == nil {
 			slidevBin = bundledSlidev
 		}
+	}
+
+	// In production mode, we MUST have bundled resources - no fallback to npx
+	if isProduction && slidevBin == "" {
+		err := fmt.Errorf("production mode detected but bundled Slidev not found at %s. Please reinstall the application", filepath.Join(bundledResources, "node_modules", "@slidev", "cli", "bin", "slidev.mjs"))
+		cancel()
+		complete("", err)
+		return "", err
 	}
 
 	portStr := strconv.Itoa(port)

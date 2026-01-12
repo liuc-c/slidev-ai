@@ -13,8 +13,26 @@ type AIConfig struct {
 	Model    string `json:"model"`
 }
 
+// PromptStyle represents a presentation generation style with customizable prompts
+type PromptStyle struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Icon          string `json:"icon"`
+	Description   string `json:"description"`
+	OutlinePrompt string `json:"outlinePrompt"`
+	SlidePrompt   string `json:"slidePrompt"`
+	IsBuiltin     bool   `json:"isBuiltin"` // Builtin styles cannot be deleted but can be edited
+}
+
+// PromptConfig stores the user's prompt style preferences
+type PromptConfig struct {
+	SelectedStyleID string        `json:"selectedStyleId"` // Currently selected style ID
+	CustomStyles    []PromptStyle `json:"customStyles"`    // User-defined + edited builtin styles
+}
+
 type Config struct {
-	AI AIConfig `json:"ai"`
+	AI      AIConfig     `json:"ai"`
+	Prompts PromptConfig `json:"prompts"`
 }
 
 var (

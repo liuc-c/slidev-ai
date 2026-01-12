@@ -28,3 +28,19 @@ export interface OutlineItem {
   type: 'primary' | 'secondary';
   children: { label: string; type: string }[];
 }
+
+// Prompt Style Types
+export interface PromptStyle {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  outlinePrompt: string;
+  slidePrompt: string;
+  isBuiltin: boolean;
+}
+
+export interface PromptConfig {
+  selectedStyleId: string;
+  customStyles: PromptStyle[];
+}

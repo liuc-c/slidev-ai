@@ -61,8 +61,9 @@ jobs:
 
     - name: Verify NSIS (Windows)
       if: matrix.os == 'windows-latest'
-      run: makensis /VERSION
-      shell: bash
+      shell: pwsh
+      run: |
+        & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /VERSION
 
     - name: Prepare Bundled Resources (Windows)
       if: matrix.os == 'windows-latest'

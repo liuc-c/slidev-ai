@@ -4,34 +4,12 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, streamText } from 'ai';
 
-export const OutlinePrompt = `You are an expert presentation designer.
-Your task is to generate a structured outline for a presentation based on the user's topic.
-Return ONLY a JSON array of objects. Do not include markdown formatting or code blocks.
-The JSON structure should be:
-[
-  {
-    "id": "01",
-    "title": "Slide Title",
-    "type": "primary", // or "secondary"
-    "children": [
-      { "label": "Bullet point or sub-content", "type": "content" }
-    ]
-  }
-]
-Make the outline comprehensive, logical, and engaging.`;
+import { BUILTIN_STYLES, DEFAULT_STYLE_ID, getStyleById } from './prompts';
+import type { PromptStyle } from '../types';
 
-export const SlidePrompt = `You are an expert Slidev (Markdown-based presentation) generator.
-Your task is to generate the full Markdown content for a presentation based on the provided outline.
-Use the following Slidev syntax conventions:
-- Frontmatter at the top (theme: seriph, etc.)
-- "---" to separate slides.
-- "# Title" for slide titles.
-- Use layouts like "cover", "intro", "default", "two-cols".
-- Include images using standard markdown syntax or Slidev components if relevant.
-- Return ONLY the raw markdown content. Do not wrap in code blocks.
-
-Outline:
-`;
+// Default prompts (fallback to business style)
+export const OutlinePrompt = BUILTIN_STYLES[0].outlinePrompt;
+export const SlidePrompt = BUILTIN_STYLES[0].slidePrompt;
 
 export function getProvider(config: any) {
   const { provider, apiKey, baseUrl } = config.ai;
@@ -61,13 +39,20 @@ export function getProvider(config: any) {
   }
 }
 
-export async function generateOutline(config: any, topic: string) {
+export async function generateOutline(
+  config: any,
+  topic: string,
+  customOutlinePrompt?: string
+) {
   const provider = getProvider(config);
   const model = provider(config.ai.model);
 
+  // Use custom prompt if provided, otherwise use default
+  const systemPrompt = customOutlinePrompt || OutlinePrompt;
+
   const { text } = await generateText({
     model,
-    system: OutlinePrompt,
+    system: systemPrompt,
     prompt: `Topic: ${topic}`,
   });
 
@@ -89,13 +74,20 @@ export async function generateOutline(config: any, topic: string) {
   }
 }
 
-export async function generateSlides(config: any, outline: any[]) {
+export async function generateSlides(
+  config: any,
+  outline: any[],
+  customSlidePrompt?: string
+) {
   const provider = getProvider(config);
   const model = provider(config.ai.model);
 
+  // Use custom prompt if provided, otherwise use default
+  const systemPrompt = customSlidePrompt || SlidePrompt;
+
   const { text } = await generateText({
     model,
-    system: SlidePrompt,
+    system: systemPrompt,
     prompt: JSON.stringify(outline, null, 2),
   });
 

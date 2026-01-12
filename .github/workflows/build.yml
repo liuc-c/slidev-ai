@@ -51,6 +51,19 @@ jobs:
       with:
         node-version: 20
 
+    - name: Install NSIS (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install nsis -y
+        # Add NSIS to PATH for subsequent steps
+        echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Verify NSIS (Windows)
+      if: matrix.os == 'windows-latest'
+      run: makensis /VERSION
+      shell: bash
+
     - name: Prepare Bundled Resources (Windows)
       if: matrix.os == 'windows-latest'
       run: |
@@ -65,6 +78,22 @@ jobs:
         npm install @slidev/cli @slidev/theme-default @slidev/theme-seriph --prefix build/windows/resources
       shell: bash
 
+    - name: Verify Bundled Resources (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Assert node.exe exists
+        if [ ! -f "build/windows/resources/node/node.exe" ]; then
+          echo "ERROR: build/windows/resources/node/node.exe not found!"
+          exit 1
+        fi
+        # Assert slidev.mjs exists
+        if [ ! -f "build/windows/resources/node_modules/@slidev/cli/bin/slidev.mjs" ]; then
+          echo "ERROR: build/windows/resources/node_modules/@slidev/cli/bin/slidev.mjs not found!"
+          exit 1
+        fi
+        echo "Bundled resources verified successfully."
+      shell: bash
+
     - name: Install Wails
       run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
@@ -72,6 +101,19 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         wails build -nsis -ldflags "-X main.Version=${{ needs.prepare.outputs.new_tag }}"
+      shell: bash
+
+    - name: Verify Windows Installer Exists
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Assert installer exists
+        if ! ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
+          echo "ERROR: No installer found in build/bin/. Expected *-installer.exe"
+          ls -la build/bin/
+          exit 1
+        fi
+        echo "Windows installer verified:"
+        ls -la build/bin/*-installer.exe
       shell: bash
 
     - name: Build macOS App
@@ -84,8 +126,8 @@ jobs:
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: slidev-studio-ai-windows
-        path: build/bin/*
+        name: slidev-studio-ai-windows-installer
+        path: build/bin/*-installer.exe
 
     - name: Upload Artifacts (macOS)
       if: matrix.os == 'macos-latest'
@@ -106,7 +148,7 @@ jobs:
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: slidev-studio-ai-windows
+          name: slidev-studio-ai-windows-installer
           path: artifacts/windows
 
       - name: Download macOS Artifacts

@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { OutlineItem } from '../types';
+import { ref, computed, onMounted } from 'vue';
+import type { OutlineItem, PromptStyle } from '../types';
 import * as App from '../../wailsjs/go/main/App';
 import { generateOutline as aiGenerateOutline, generateSlides as aiGenerateSlides } from '../lib/ai';
+import { getMergedStyles, getStyleById, createEmptyStyle, DEFAULT_STYLE_ID } from '../lib/prompts';
+import StyleSelector from '../components/StyleSelector.vue';
+import StyleEditor from '../components/StyleEditor.vue';
 
 const props = defineProps<{
   projectName?: string;
@@ -18,13 +21,115 @@ const isLoading = ref(false);
 const loadingMessage = ref('');
 const config = ref<any>(null);
 
+// Style management state
+const selectedStyleId = ref(DEFAULT_STYLE_ID);
+const customStyles = ref<PromptStyle[]>([]);
+const editorOpen = ref(false);
+const editingStyle = ref<PromptStyle | null>(null);
+
+// Computed: all available styles (builtin + custom)
+const availableStyles = computed(() => getMergedStyles(customStyles.value));
+
+// Computed: currently selected style object
+const currentStyle = computed(() => 
+  getStyleById(selectedStyleId.value, customStyles.value) || availableStyles.value[0]
+);
+
 onMounted(async () => {
   try {
     config.value = await App.GetSettings();
+    
+    // Load saved prompt config
+    if (config.value?.prompts) {
+      if (config.value.prompts.selectedStyleId) {
+        selectedStyleId.value = config.value.prompts.selectedStyleId;
+      }
+      if (config.value.prompts.customStyles) {
+        customStyles.value = config.value.prompts.customStyles;
+      }
+    }
   } catch (e) {
     console.error("Failed to load settings", e);
   }
 });
+
+// Save prompt config to backend
+const savePromptConfig = async () => {
+  if (!config.value) return;
+  
+  const updatedConfig = {
+    ...config.value,
+    prompts: {
+      selectedStyleId: selectedStyleId.value,
+      customStyles: customStyles.value,
+    }
+  };
+  
+  try {
+    await App.SaveSettings(updatedConfig);
+    config.value = updatedConfig;
+  } catch (e) {
+    console.error("Failed to save prompt config", e);
+  }
+};
+
+// Style selection handler
+const handleStyleSelect = async (styleId: string) => {
+  selectedStyleId.value = styleId;
+  await savePromptConfig();
+};
+
+// Open editor for a style
+const handleStyleEdit = (style: PromptStyle) => {
+  editingStyle.value = style;
+  editorOpen.value = true;
+};
+
+// Open editor for new style
+const handleStyleAdd = () => {
+  editingStyle.value = createEmptyStyle();
+  editorOpen.value = true;
+};
+
+// Save edited style
+const handleStyleSave = async (style: PromptStyle) => {
+  const existingIndex = customStyles.value.findIndex(s => s.id === style.id);
+  
+  if (existingIndex >= 0) {
+    // Update existing
+    customStyles.value[existingIndex] = style;
+  } else {
+    // Add new
+    customStyles.value.push(style);
+  }
+  
+  // Auto-select the saved style
+  selectedStyleId.value = style.id;
+  
+  await savePromptConfig();
+  editorOpen.value = false;
+  editingStyle.value = null;
+};
+
+// Delete a custom style
+const handleStyleDelete = async (styleId: string) => {
+  customStyles.value = customStyles.value.filter(s => s.id !== styleId);
+  
+  // If deleted style was selected, switch to default
+  if (selectedStyleId.value === styleId) {
+    selectedStyleId.value = DEFAULT_STYLE_ID;
+  }
+  
+  await savePromptConfig();
+  editorOpen.value = false;
+  editingStyle.value = null;
+};
+
+// Close editor
+const handleEditorClose = () => {
+  editorOpen.value = false;
+  editingStyle.value = null;
+};
 
 const generateOutline = async () => {
   if (!topic.value) return;
@@ -36,7 +141,12 @@ const generateOutline = async () => {
   isLoading.value = true;
   loadingMessage.value = 'AI 正在构思大纲...';
   try {
-    steps.value = await aiGenerateOutline(config.value, topic.value);
+    // Use the selected style's outline prompt
+    steps.value = await aiGenerateOutline(
+      config.value, 
+      topic.value,
+      currentStyle.value?.outlinePrompt
+    );
   } catch (e: any) {
     console.error(e);
     alert(e.message || "大纲生成失败");
@@ -57,7 +167,12 @@ const handleGenerate = async () => {
 
   try {
     const filename = props.projectName || 'slides.md';
-    const content = await aiGenerateSlides(config.value, steps.value);
+    // Use the selected style's slide prompt
+    const content = await aiGenerateSlides(
+      config.value, 
+      steps.value,
+      currentStyle.value?.slidePrompt
+    );
     await App.SaveSlides(filename, content);
     emit('update:activeView', 'editor_code');
   } catch (e: any) {
@@ -71,6 +186,16 @@ const handleGenerate = async () => {
 
 const removeStep = (id: string) => {
   steps.value = steps.value.filter(s => s.id !== id);
+};
+
+const addStep = () => {
+  const newId = String(steps.value.length + 1).padStart(2, '0');
+  steps.value.push({
+    id: newId,
+    title: '',
+    type: 'secondary',
+    children: []
+  });
 };
 </script>
 
@@ -95,10 +220,10 @@ const removeStep = (id: string) => {
           </span>
         </div>
         <div class="flex items-center gap-2">
-          <button class="flex items-center gap-2 px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-white transition-colors bg-white/5 rounded border border-white/10">
-            <span class="material-symbols-outlined text-[16px]">restart_alt</span>
-            重置提示词
-          </button>
+          <div class="flex items-center gap-2 px-3 py-1 text-[10px] font-bold text-slate-400 bg-white/5 rounded border border-white/10">
+            <span class="material-symbols-outlined text-[14px] text-primary">{{ currentStyle?.icon }}</span>
+            <span>{{ currentStyle?.name }}</span>
+          </div>
         </div>
       </header>
 
@@ -172,12 +297,23 @@ const removeStep = (id: string) => {
         <span class="text-xs font-bold uppercase tracking-widest">AI 优化助手</span>
       </div>
       <div class="flex-1 p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+        <!-- Style Selector -->
+        <StyleSelector
+          :styles="availableStyles"
+          :selectedId="selectedStyleId"
+          @select="handleStyleSelect"
+          @edit="handleStyleEdit"
+          @add="handleStyleAdd"
+        />
+
+        <div class="h-px bg-border-dark"></div>
+
         <div class="flex items-start gap-3">
             <div class="size-8 rounded-full bg-primary/20 flex items-center justify-center text-primary border border-primary/30 shrink-0">
               <span class="material-symbols-outlined text-[18px]">smart_toy</span>
             </div>
             <div class="bg-slate-800/80 border border-border-dark p-4 rounded-xl text-xs leading-relaxed text-slate-300 shadow-md">
-              你好！我是大纲生成助手。请输入你想要生成的演示文稿主题。
+              你好！我是大纲生成助手。当前使用 <strong class="text-primary">{{ currentStyle?.name }}</strong> 风格，请输入演示文稿主题。
             </div>
         </div>
 
@@ -209,5 +345,14 @@ const removeStep = (id: string) => {
         </div>
       </div>
     </aside>
+
+    <!-- Style Editor Drawer -->
+    <StyleEditor
+      :style="editingStyle"
+      :isOpen="editorOpen"
+      @close="handleEditorClose"
+      @save="handleStyleSave"
+      @delete="handleStyleDelete"
+    />
   </div>
 </template>

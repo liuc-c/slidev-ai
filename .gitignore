@@ -2,6 +2,16 @@ build/bin
 node_modules
 frontend/dist
 
+# Root package files (dev convenience only, not needed for CI/production)
+/package.json
+/package-lock.json
+
+# Local config
+config.json
+
+# Temp slides
+internal/slidev/slides.md
+
 # Binaries
 *.exe
 *.dll

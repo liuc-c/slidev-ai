@@ -45,6 +45,16 @@ const onCreateProject = async () => {
   emit('update:activeView', 'planner');
 };
 
+const onDeleteProject = async (name: string, event: Event) => {
+  event.stopPropagation(); // 阻止触发打开项目
+  if (!confirm(`确定要删除 "${name}" 吗？此操作不可撤销。`)) return;
+
+  if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
+    await (window as any).go.main.App.DeleteProject(name);
+    await fetchProjects();
+  }
+};
+
 </script>
 
 <template>
@@ -104,6 +114,13 @@ const onCreateProject = async () => {
               @click="onOpenProject(p.name)"
             >
               <div class="relative aspect-video rounded-xl overflow-hidden border border-border-dark bg-panel-dark transition-all group-hover:border-primary/50 group-hover:shadow-2xl group-hover:shadow-primary/10">
+                <button
+                  @click="(e) => onDeleteProject(p.name, e)"
+                  class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-black/60 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 backdrop-blur-sm"
+                  title="删除项目"
+                >
+                  <span class="material-symbols-outlined text-lg">delete</span>
+                </button>
                 <img :src="p.img" :alt="p.name" class="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" />
                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                   <button class="w-full bg-white text-black py-2 rounded-lg text-xs font-bold">打开项目</button>
@@ -156,8 +173,12 @@ const onCreateProject = async () => {
                   <span class="bg-slate-800 text-slate-500 text-[9px] px-1.5 py-0.5 rounded font-mono uppercase group-hover:text-slate-300">Local</span>
                 </div>
                 <div class="col-span-1 text-right">
-                  <button class="text-slate-500 hover:text-white transition-colors">
-                    <span class="material-symbols-outlined text-lg">more_vert</span>
+                  <button
+                    @click="(e) => onDeleteProject(p.name, e)"
+                    class="text-slate-500 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+                    title="删除"
+                  >
+                    <span class="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
               </div>

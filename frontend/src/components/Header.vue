@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { AppView } from '../types';
+import { AppView, AiMode } from '../types';
 
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
 
@@ -8,17 +8,17 @@ const props = defineProps<{
   activeView: string;
   projectName: string;
   slidevUrl?: string;
+  aiMode?: AiMode;
 }>();
 
 
 const emit = defineEmits<{
   (e: 'navigate', view: string): void;
+  (e: 'update:aiMode', mode: AiMode): void;
 }>();
 
 const isEditor = computed(() => {
-  return props.activeView === AppView.EDITOR_CODE ||
-         props.activeView === AppView.EDITOR_AI ||
-         props.activeView === AppView.PLANNER;
+  return props.activeView === AppView.EDITOR;
 });
 
 const onNavigate = (view: string) => {
@@ -62,22 +62,16 @@ const onPresent = () => {
         <div class="h-4 w-[1px] bg-border-dark mx-2"></div>
         <nav class="flex items-center gap-1 bg-background-dark/50 p-1 rounded-lg border border-border-dark/30 shadow-inner">
           <button
-            @click="onNavigate(AppView.EDITOR_CODE)"
-            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${activeView === AppView.EDITOR_CODE ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
+            @click="emit('update:aiMode', 'ppt')"
+            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${aiMode === 'ppt' ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
           >
-            代码
+            PPT 编辑
           </button>
           <button
-            @click="onNavigate(AppView.EDITOR_AI)"
-            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${activeView === AppView.EDITOR_AI ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
+            @click="emit('update:aiMode', 'outline')"
+            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${aiMode === 'outline' ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
           >
-            AI
-          </button>
-          <button
-            @click="onNavigate(AppView.PLANNER)"
-            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${activeView === AppView.PLANNER ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
-          >
-            大纲
+            大纲生成
           </button>
         </nav>
       </template>

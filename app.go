@@ -89,6 +89,11 @@ func (a *App) CreateProject(name string) error {
 	return a.tools.CreateProject(name)
 }
 
+// DeleteProject deletes a project file
+func (a *App) DeleteProject(name string) error {
+	return a.tools.DeleteProject(name)
+}
+
 // ReadSlides reads the content of a specific markdown file
 func (a *App) ReadSlides(filename string) (string, error) {
 	if filename == "" {

@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { AppView } from './types';
+import { AppView, AiMode } from './types';
 import Sidebar from './components/Sidebar.vue';
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
 import * as App from '../wailsjs/go/main/App';
 
-// State (mocking what was in App.tsx)
-const activeView = ref('dashboard');
+// State
+const activeView = ref<string>('dashboard');
 const activeProjectName = ref('slides.md');
 const markdown = ref('');
 const activeSlideIndex = ref(0);
 const slidevUrl = ref('');
+const aiMode = ref<AiMode>('ppt');
 
 const router = useRouter();
 
@@ -52,21 +53,23 @@ const slides = computed(() => {
 // Update activeView based on route
 router.afterEach((to) => {
   if (to.name === 'Dashboard') activeView.value = 'dashboard';
-  else if (to.name === 'Editor') activeView.value = 'editor_code'; // Or editor_ai
-  else if (to.name === 'Planner') activeView.value = 'planner';
+  else if (to.name === 'Editor') activeView.value = 'editor';
   else if (to.name === 'Settings') activeView.value = 'settings';
 });
 
 const handleNavigate = (view: string) => {
   activeView.value = view;
   if (view === 'dashboard') router.push('/');
-  else if (view === 'editor_code' || view === 'editor_ai') router.push('/editor');
-  else if (view === 'planner') router.push('/planner');
+  else if (view === 'editor') router.push('/editor');
   else if (view === 'settings') router.push('/settings');
 };
 
 const setActiveSlideIndex = (index: number) => {
   activeSlideIndex.value = index;
+};
+
+const setAiMode = (mode: AiMode) => {
+  aiMode.value = mode;
 };
 
 // Auto-save logic
@@ -129,15 +132,19 @@ onMounted(async () => {
       :activeView="activeView"
       :projectName="activeProjectName"
       :slidevUrl="slidevUrl"
+      :aiMode="aiMode"
       @navigate="handleNavigate"
+      @update:aiMode="setAiMode"
     />
 
 
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
-        v-if="activeView !== 'dashboard' && activeView !== 'settings'"
+        v-if="activeView === 'editor'"
         :activeView="activeView"
+        :aiMode="aiMode"
         @navigate="handleNavigate"
+        @update:aiMode="setAiMode"
         :activeSlideIndex="activeSlideIndex"
         @selectSlide="setActiveSlideIndex"
         :slides="slides"
@@ -152,14 +159,16 @@ onMounted(async () => {
           :activeSlideIndex="activeSlideIndex"
           v-model:markdown="markdown"
           :slidevUrl="slidevUrl"
+          :aiMode="aiMode"
           @update:activeView="handleNavigate"
           @update:projectName="(n) => (activeProjectName = n)"
           @update:activeSlideIndex="setActiveSlideIndex"
+          @update:aiMode="setAiMode"
         ></router-view>
       </main>
     </div>
 
-    <Footer :activeView="activeView" @navigate="handleNavigate" />
+    <Footer :activeView="activeView" :aiMode="aiMode" @navigate="handleNavigate" @update:aiMode="setAiMode" />
   </div>
 </template>
 

@@ -52,7 +52,8 @@ const slides = computed(() => {
 // Update activeView based on route
 router.afterEach((to) => {
   if (to.name === 'Dashboard') activeView.value = 'dashboard';
-  else if (to.name === 'Editor') activeView.value = 'editor_code'; // Or editor_ai
+  else if (to.name === 'Editor') activeView.value = 'editor_ai'; // Or editor_ai
+
   else if (to.name === 'Planner') activeView.value = 'planner';
   else if (to.name === 'Settings') activeView.value = 'settings';
 });
@@ -60,7 +61,8 @@ router.afterEach((to) => {
 const handleNavigate = (view: string) => {
   activeView.value = view;
   if (view === 'dashboard') router.push('/');
-  else if (view === 'editor_code' || view === 'editor_ai') router.push('/editor');
+  else if (view === 'editor_ai') router.push('/editor');
+
   else if (view === 'planner') router.push('/planner');
   else if (view === 'settings') router.push('/settings');
 };

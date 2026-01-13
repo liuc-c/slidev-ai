@@ -9,7 +9,6 @@ import { z } from 'zod';
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
 
 const props = defineProps<{
-  activeView: string; // 'editor_code' or 'editor_ai'
   projectName: string;
   activeSlideIndex: number;
   slidevUrl?: string; // Passed from App.vue
@@ -17,11 +16,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:activeView', view: string): void;
   (e: 'update:markdown', value: string): void;
 }>();
-
-const mode = computed(() => props.activeView === AppView.EDITOR_CODE ? 'code' : 'ai');
 
 // AI Configuration from backend
 const aiConfig = ref<config.Config | null>(null);
@@ -209,32 +205,8 @@ const previewData = computed(() => {
       </div>
     </section>
 
-    <!-- Code Editor -->
-    <template v-if="mode === 'code'">
-      <section class="flex-[2] flex flex-col bg-[#0b0f1a]">
-        <div class="flex border-b border-border-dark bg-background-dark/50">
-          <div class="flex items-center gap-2 px-4 py-3 border-r border-border-dark bg-[#0b0f1a] border-t-2 border-t-primary">
-            <span class="material-symbols-outlined text-primary text-sm">description</span>
-            <span class="text-xs font-bold text-white">{{ projectName }}</span>
-          </div>
-        </div>
-        <div class="flex-1 flex overflow-hidden font-mono text-[13px]">
-          <div class="w-12 py-4 flex flex-col items-center text-[#314368] select-none bg-[#0b0f1a] border-r border-border-dark/30">
-            <span v-for="i in 40" :key="i" :class="i > 30 ? 'opacity-20' : ''">{{ i }}</span>
-          </div>
-          <textarea
-            :value="markdown"
-            @input="(e) => emit('update:markdown', (e.target as HTMLTextAreaElement).value)"
-            class="flex-1 bg-transparent border-none focus:ring-0 text-[#79c0ff] p-4 resize-none leading-relaxed custom-scrollbar whitespace-pre font-mono"
-            spellcheck="false"
-          ></textarea>
-        </div>
-      </section>
-    </template>
-
     <!-- AI Panel -->
-    <template v-if="mode === 'ai'">
-      <aside class="flex-[2] flex flex-col bg-panel-dark">
+    <aside class="flex-[2] flex flex-col bg-panel-dark">
         <div class="flex border-b border-border-dark px-4 shrink-0 h-14">
           <div class="flex-1 flex flex-col items-center justify-center border-b-[3px] border-primary text-white shadow-[0_4px_12px_rgba(13,89,242,0.1)]">
             <p class="text-xs font-bold tracking-widest flex items-center gap-2 uppercase">
@@ -296,6 +268,5 @@ const previewData = computed(() => {
           </form>
         </div>
       </aside>
-    </template>
   </div>
 </template>

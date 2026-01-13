@@ -11,14 +11,6 @@ const emit = defineEmits<{
 }>();
 
 const isPrimary = computed(() => props.activeView === AppView.EDITOR_AI || props.activeView === AppView.PLANNER);
-
-const toggleAI = () => {
-  if (props.activeView === AppView.EDITOR_AI) {
-    emit('navigate', AppView.EDITOR_CODE);
-  } else {
-    emit('navigate', AppView.EDITOR_AI);
-  }
-};
 </script>
 
 <template>
@@ -35,10 +27,6 @@ const toggleAI = () => {
     </div>
 
     <div class="flex items-center gap-4">
-      <button @click="toggleAI" class="flex items-center gap-1 hover:text-white cursor-pointer transition-colors focus:outline-none">
-        <span class="material-symbols-outlined text-[12px]">bolt</span>
-        AI_LAYER_ACTIVE
-      </button>
       <div class="flex items-center gap-2">
         <span>v0.48.0-studio</span>
         <span class="opacity-50">|</span>

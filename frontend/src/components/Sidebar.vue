@@ -45,15 +45,6 @@ const onSelectSlide = (id: number) => {
           <span class="material-symbols-outlined text-sm">account_tree</span>
           <span class="text-[9px] font-bold uppercase tracking-tighter">大纲</span>
         </button>
-        <button
-          v-else
-          @click="onNavigate(AppView.EDITOR_CODE)"
-          class="group flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md transition-all"
-          title="返回代码编辑器"
-        >
-          <span class="material-symbols-outlined text-sm">code</span>
-          <span class="text-[9px] font-bold uppercase tracking-tighter">代码</span>
-        </button>
       </div>
     </div>
 
@@ -85,7 +76,7 @@ const onSelectSlide = (id: number) => {
               :key="slide.id"
               @click="() => {
                 onSelectSlide(slide.id);
-                if (isPlanner) onNavigate(AppView.EDITOR_CODE);
+                if (isPlanner) onNavigate(AppView.EDITOR_AI);
               }"
               :class="`flex items-center gap-3 px-3 py-2 cursor-pointer transition-all rounded group relative ${
                 activeSlideIndex === slide.id

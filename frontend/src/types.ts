@@ -1,7 +1,6 @@
 
 export enum AppView {
   DASHBOARD = 'dashboard',
-  EDITOR_CODE = 'editor_code',
   EDITOR_AI = 'editor_ai',
   PLANNER = 'planner',
   SETTINGS = 'settings'

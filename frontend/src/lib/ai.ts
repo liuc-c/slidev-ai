@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText, streamText } from 'ai';
+import { generateText, streamText, stepCountIs } from 'ai';
 
 import { BUILTIN_STYLES, DEFAULT_STYLE_ID, getStyleById } from './prompts';
 import type { PromptStyle } from '../types';
@@ -50,27 +50,42 @@ export async function generateOutline(
   // Use custom prompt if provided, otherwise use default
   const systemPrompt = customOutlinePrompt || OutlinePrompt;
 
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    prompt: `Topic: ${topic}`,
-  });
-
-  let content = text.trim();
-  if (content.startsWith('```')) {
-    const lines = content.split('\n');
-    content = lines.slice(1, -1).join('\n');
-    // If it still has JSON tag
-    if (content.startsWith('json')) {
-        content = content.substring(4).trim();
-    }
-  }
+  // 添加 60 秒超时
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 60000);
 
   try {
-    return JSON.parse(content);
-  } catch (e) {
-    console.error('Failed to parse AI response:', content);
-    throw new Error('AI 返回了大纲，但格式不正确，请重试');
+    const { text } = await generateText({
+      model,
+      system: systemPrompt,
+      prompt: `Topic: ${topic}`,
+      abortSignal: abortController.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    let content = text.trim();
+    if (content.startsWith('```')) {
+      const lines = content.split('\n');
+      content = lines.slice(1, -1).join('\n');
+      // If it still has JSON tag
+      if (content.startsWith('json')) {
+          content = content.substring(4).trim();
+      }
+    }
+
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse AI response:', content);
+      throw new Error('AI 返回了大纲，但格式不正确，请重试');
+    }
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      throw new Error('AI 响应超时（60秒），请检查网络或 API 配置后重试');
+    }
+    throw e;
   }
 }
 
@@ -112,5 +127,6 @@ export function getChatStream(config: any, messages: any[], system: string, tool
     system,
     messages,
     tools,
+    stopWhen: stepCountIs(20), // 允许最多20轮工具调用，让 AI 能够执行工具后继续对话
   });
 }

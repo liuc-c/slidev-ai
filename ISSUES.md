@@ -11,3 +11,31 @@
 ## Questions
 - **Backend**: Current `GenerateSlides` overwrites the file. Should it append?
 - **AI**: Need to fine-tune prompts for better Slidev syntax accuracy.
+
+---
+layout: default
+---
+
+# New Slide
+
+
+
+
+---
+layout: default
+---
+
+# New Slide
+
+---
+layout: default
+---
+
+# New Slide
+
+---
+layout: default
+---
+
+# New Slide
+

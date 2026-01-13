@@ -16,8 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const isEditor = computed(() => {
-  return props.activeView === AppView.EDITOR_AI ||
-         props.activeView === AppView.PLANNER;
+  return props.activeView === AppView.EDITOR_AI;
 });
 
 const onNavigate = (view: string) => {
@@ -65,12 +64,6 @@ const onPresent = () => {
             :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${activeView === AppView.EDITOR_AI ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
           >
             AI
-          </button>
-          <button
-            @click="onNavigate(AppView.PLANNER)"
-            :class="`px-4 py-1 rounded-md text-xs font-bold transition-all ${activeView === AppView.PLANNER ? 'bg-primary text-white shadow-lg' : 'text-[#90a4cb] hover:text-white'}`"
-          >
-            大纲
           </button>
         </nav>
       </template>

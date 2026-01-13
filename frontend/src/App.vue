@@ -2,7 +2,6 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { AppView } from './types';
-import Sidebar from './components/Sidebar.vue';
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
 import * as App from '../wailsjs/go/main/App';
@@ -53,8 +52,6 @@ const slides = computed(() => {
 router.afterEach((to) => {
   if (to.name === 'Dashboard') activeView.value = 'dashboard';
   else if (to.name === 'Editor') activeView.value = 'editor_ai'; // Or editor_ai
-
-  else if (to.name === 'Planner') activeView.value = 'planner';
   else if (to.name === 'Settings') activeView.value = 'settings';
 });
 
@@ -62,8 +59,6 @@ const handleNavigate = (view: string) => {
   activeView.value = view;
   if (view === 'dashboard') router.push('/');
   else if (view === 'editor_ai') router.push('/editor');
-
-  else if (view === 'planner') router.push('/planner');
   else if (view === 'settings') router.push('/settings');
 };
 
@@ -136,17 +131,6 @@ onMounted(async () => {
 
 
     <div class="flex flex-1 overflow-hidden">
-      <Sidebar
-        v-if="activeView !== 'dashboard' && activeView !== 'settings'"
-        :activeView="activeView"
-        @navigate="handleNavigate"
-        :activeSlideIndex="activeSlideIndex"
-        @selectSlide="setActiveSlideIndex"
-        :slides="slides"
-        :projectName="activeProjectName"
-      />
-
-
       <main class="flex-1 flex overflow-hidden">
         <router-view
           :activeView="activeView"

@@ -37,28 +37,58 @@ const input = ref('');
 const isLoading = ref(false);
 
 // System prompt with available tools
-const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优化演示文稿。回复时请使用中文，保持简洁友好。`;
+const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优化演示文稿。回复时请使用中文，保持简洁友好。
+
+你有以下工具可以使用：
+1. update_page(pageIndex, markdown) - 更新指定页面内容。pageIndex 从 0 开始。
+2. insert_page(afterIndex, layout) - 在指定页面后插入新空白页面。afterIndex 从 0 开始。插入后新页面的索引是 afterIndex + 1。
+3. apply_theme(themeName) - 应用主题。
+
+⚠️ 重要规则：
+- 每次工具调用只能操作一个页面
+- 如果需要添加2页，必须分开调用：先 insert_page，再 insert_page，然后分别 update_page
+- 插入第一个页面后，后续页面的索引会变化！例如：在第3页后插入新页面，新页面是第4页；再在第4页后插入，新页面是第5页
+- update_page 的 markdown 内容不要包含 --- 分隔符，只写页面内容
+- 先完成所有 insert_page，再依次 update_page
+
+示例：添加2页到第5页之后
+1. insert_page(afterIndex=5) → 新页面索引是6
+2. insert_page(afterIndex=6) → 新页面索引是7
+3. update_page(pageIndex=6, markdown="# 第一页内容...")
+4. update_page(pageIndex=7, markdown="# 第二页内容...")`;
 
 // Tool definitions for Vercel AI SDK
 const tools = {
   update_page: tool({
-    description: '更新指定页面的 Markdown 内容',
+    description: '更新指定页面的 Markdown 内容。pageIndex 从 0 开始，0 表示第一页幻灯片。',
     parameters: z.object({
-      pageIndex: z.number().describe('页面索引（从0开始）'),
-      markdown: z.string().describe('新的 Markdown 内容'),
+      pageIndex: z.number().describe('要更新的页面索引，从0开始。0=第一页，1=第二页，以此类推'),
+      markdown: z.string().describe('新的 Markdown 内容，不需要包含 --- 分隔符'),
     }),
-    execute: async ({ pageIndex, markdown }) => {
+    execute: async (input) => {
+      console.log('update_page execute input:', JSON.stringify(input));
+      const { pageIndex, markdown } = input;
+      if (pageIndex === undefined || pageIndex === null || typeof pageIndex !== 'number' || isNaN(pageIndex)) {
+        console.error('update_page parameter error:', input);
+        return `❌ 参数错误：pageIndex 必须是数字，收到: ${JSON.stringify(input)}`;
+      }
       await App.UpdatePage(props.projectName, pageIndex, markdown);
       return `✅ 已更新第 ${pageIndex + 1} 页`;
     },
   }),
   insert_page: tool({
-    description: '在指定位置后插入新页面',
+    description: '在指定位置后插入新的空白页面。afterIndex 从 0 开始，表示在哪一页之后插入。',
     parameters: z.object({
-      afterIndex: z.number().describe('在此索引之后插入（从0开始）'),
-      layout: z.string().describe('页面布局类型（default, center, two-cols 等）'),
+      afterIndex: z.number().describe('在此页面之后插入新页面。0=在第一页后插入，-1=在最开头插入'),
+      layout: z.string().optional().describe('页面布局类型：default, center, two-cols, image-right 等'),
     }),
-    execute: async ({ afterIndex, layout }) => {
+    execute: async (input) => {
+      console.log('insert_page execute input:', JSON.stringify(input));
+      const { afterIndex, layout = 'default' } = input;
+      if (afterIndex === undefined || afterIndex === null || typeof afterIndex !== 'number' || isNaN(afterIndex)) {
+        console.error('insert_page parameter error:', input);
+        return `❌ 参数错误：afterIndex 必须是数字，收到: ${JSON.stringify(input)}`;
+      }
       await App.InsertPage(props.projectName, afterIndex, layout);
       return `✅ 已在第 ${afterIndex + 1} 页后插入新页面`;
     },
@@ -68,7 +98,8 @@ const tools = {
     parameters: z.object({
       themeName: z.string().describe('主题名称（seriph, apple-basic, default 等）'),
     }),
-    execute: async ({ themeName }) => {
+    execute: async (input) => {
+      const { themeName } = input;
       await App.ApplyTheme(props.projectName, themeName);
       return `✅ 已应用主题: ${themeName}`;
     },
@@ -115,18 +146,38 @@ const handleSubmit = async (e?: Event) => {
       content: ''
     });
 
-    for await (const delta of result.textStream) {
-      fullContent += delta;
+    // 使用 fullStream 处理工具调用
+    for await (const part of result.fullStream) {
       const msg = messages.value.find(m => m.id === assistantMsgId);
-      if (msg) msg.content = fullContent;
+      if (!msg) continue;
+      
+      switch (part.type) {
+        case 'text-delta':
+          // AI SDK v3+ 使用 'text' 属性
+          const textContent = (part as any).text ?? (part as any).textDelta ?? '';
+          if (textContent) {
+            fullContent += textContent;
+            msg.content = fullContent;
+          }
+          break;
+        case 'tool-call':
+          console.log('Tool call:', part.toolName, (part as any).input);
+          msg.content = fullContent + `\n\n🔧 正在执行: ${part.toolName}...`;
+          break;
+        case 'tool-result':
+          console.log('Tool result:', part.toolName, (part as any).output);
+          fullContent += `\n\n✅ ${part.toolName} 执行完成`;
+          msg.content = fullContent;
+          // 工具执行完成后刷新 markdown
+          const newContent = await App.ReadSlides(props.projectName);
+          emit('update:markdown', newContent);
+          break;
+      }
     }
-
-    const finalResult = await result.toDataStreamResponse(); 
-    await result.steps;
     
-    // Refresh markdown after potential tool execution
-    const newContent = await App.ReadSlides(props.projectName);
-    emit('update:markdown', newContent);
+    // 最终再刷新一次确保同步
+    const finalContent = await App.ReadSlides(props.projectName);
+    emit('update:markdown', finalContent);
 
   } catch (error) {
     console.error('AI request failed:', error);
@@ -166,6 +217,26 @@ const previewData = computed(() => {
   return { title, description, count: contentSlides.length };
 });
 
+const insertPage = async () => {
+  try {
+    isLoading.value = true;
+    // Insert after current page
+    await App.InsertPage(props.projectName, props.activeSlideIndex, 'default');
+    
+    // Refresh content
+    const newContent = await App.ReadSlides(props.projectName);
+    emit('update:markdown', newContent);
+    
+    // Navigation will be handled by Slidev automatically if the server is running, 
+    // but we might want to increment index here if we want the UI to reflect it.
+  } catch (e) {
+    console.error("Failed to insert page", e);
+    alert("插入幻灯片失败");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 </script>
 
 <template>
@@ -178,9 +249,16 @@ const previewData = computed(() => {
           <div class="h-4 w-px bg-border-dark"></div>
           <span class="text-[10px] text-[#90a4cb] font-bold">页面 {{ activeSlideIndex + 1 }} / {{ previewData.count }}</span>
         </div>
-        <div class="flex items-center gap-2 text-[#90a4cb]">
-          <button 
-            v-if="slidevUrl"
+          <div class="flex items-center gap-2 text-[#90a4cb]">
+            <button 
+              @click="insertPage"
+              class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors"
+              title="在当前页后插入新幻灯片"
+            >
+              <span class="material-symbols-outlined text-lg">add_box</span>
+            </button>
+            <button 
+              v-if="slidevUrl"
             @click="BrowserOpenURL(`${slidevUrl}/${activeSlideIndex+1}`)"
             class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors"
             title="在浏览器中打开"

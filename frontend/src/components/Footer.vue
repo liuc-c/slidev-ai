@@ -10,7 +10,7 @@ const emit = defineEmits<{
   (e: 'navigate', view: string): void;
 }>();
 
-const isPrimary = computed(() => props.activeView === AppView.EDITOR_AI || props.activeView === AppView.PLANNER);
+const isPrimary = computed(() => props.activeView === AppView.EDITOR_AI);
 </script>
 
 <template>

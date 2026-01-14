@@ -88,9 +88,13 @@ Section
 
     !insertmacro wails.files
     
-    # Bundle resources: Node.js and node_modules
+    # Bundle resources: Node.js (keep in resources)
     SetOutPath "$INSTDIR\resources"
-    File /r "..\..\..\build\windows\resources\*.*"
+    File /r "..\..\..\build\windows\resources\node"
+    
+    # Bundle node_modules (move to root for theme resolution)
+    SetOutPath "$INSTDIR"
+    File /r "..\..\..\build\windows\resources\node_modules"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

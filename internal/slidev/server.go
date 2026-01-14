@@ -134,8 +134,8 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 			nodeExe = bundledNode
 		}
 
-		// Use bundled slidev from node_modules
-		bundledSlidev := filepath.Join(bundledResources, "node_modules", "@slidev", "cli", "bin", "slidev.mjs")
+		// Use bundled slidev from node_modules (located in app root for theme resolution)
+		bundledSlidev := filepath.Join(appDir, "node_modules", "@slidev", "cli", "bin", "slidev.mjs")
 		if _, err := os.Stat(bundledSlidev); err == nil {
 			slidevBin = bundledSlidev
 		}
@@ -143,7 +143,7 @@ func (s *Server) Start(dir string, filename string) (string, error) {
 
 	// In production mode, we MUST have bundled resources - no fallback to npx
 	if isProduction && slidevBin == "" {
-		err := fmt.Errorf("production mode detected but bundled Slidev not found at %s. Please reinstall the application", filepath.Join(bundledResources, "node_modules", "@slidev", "cli", "bin", "slidev.mjs"))
+		err := fmt.Errorf("production mode detected but bundled Slidev not found at %s. Please reinstall the application", filepath.Join(appDir, "node_modules", "@slidev", "cli", "bin", "slidev.mjs"))
 		cancel()
 		complete("", err)
 		return "", err

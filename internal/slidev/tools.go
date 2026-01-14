@@ -156,27 +156,20 @@ func (t *Tools) UpdatePage(filename string, pageIndex int, markdown string) erro
 	// Normalize newlines
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 
+	// Regular expression to match --- only at the start of a line
 	parts := regexp.MustCompile(`(?m)^---$`).Split(content, -1)
 
-	// Filter out empty parts if any, but regex split usually keeps them.
-	// The first part might be empty if file starts with ---
+	// In Slidev, a slide is defined as:
+	// --- (delimiter)
+	// slide content
+	// --- (delimiter)
 
-	// A standard slidev file:
-	// ---
-	// frontmatter
-	// ---
-	// Slide 1
-	// ---
-	// Slide 2
+	// If the file starts with ---, parts[0] is empty.
+	// parts[1] is the frontmatter.
+	// parts[2] is slide 1 content.
+	// parts[3] is slide 2 content.
 
-	// Split result: ["", "frontmatter\n", "\nSlide 1\n", "\nSlide 2\n"]
-
-	// Adjust index logic.
-	// pageIndex 0 -> Slide 1 (after frontmatter)
-
-	// If the file starts with ---, parts[0] is empty. parts[1] is frontmatter. parts[2] is slide 1.
-	// So slideIndex + 2 = parts index.
-
+	// If the AI says update pageIndex 0 (Slide 1), it maps to parts[2].
 	targetIndex := pageIndex + 2
 	if !strings.HasPrefix(content, "---") {
 		// If no frontmatter (rare), logic changes. Assuming standard Slidev.
@@ -186,6 +179,11 @@ func (t *Tools) UpdatePage(filename string, pageIndex int, markdown string) erro
 	if targetIndex >= len(parts) {
 		return fmt.Errorf("page index out of range")
 	}
+
+	// Simply replace the slide content
+	// Note: Each part is the content BETWEEN two --- delimiters
+	// For a slide with layout, it looks like:
+	// \nlayout: cover\n\n# Title\n\nContent\n
 
 	parts[targetIndex] = "\n" + markdown + "\n"
 
@@ -280,16 +278,30 @@ func (t *Tools) InsertPage(filename string, afterIndex int, layout string) error
 
 	insertPosIndex := afterIndex + 2
 
-	insertion := fmt.Sprintf("\n---\nlayout: %s\n---\n\n# New Slide\n\n", layout)
+	// Build the new slide content
+	// Slidev format: ---\nlayout: xxx\n---\ncontent OR just ---\ncontent
+	var insertion string
+	if layout != "" && layout != "default" {
+		// With layout frontmatter: the closing --- is part of the frontmatter
+		insertion = fmt.Sprintf("\n---\nlayout: %s\n---\n\n# New Slide\n", layout)
+	} else {
+		// Simple slide without frontmatter
+		insertion = "\n---\n\n# New Slide\n"
+	}
 
 	if insertPosIndex < len(matches) {
 		pos := matches[insertPosIndex][0] // Start of `---`
 
-		newContent := content[:pos] + insertion + content[pos:]
+		// Avoid double newlines
+		prefix := content[:pos]
+		prefix = strings.TrimRight(prefix, "\n") + "\n"
+
+		newContent := prefix + insertion + content[pos:]
 		return os.WriteFile(path, []byte(newContent), 0644)
 	} else {
-		// Append to end
-		newContent := content + insertion
+		// Append to end - ensure content ends with newline
+		trimmedContent := strings.TrimRight(content, "\n") + "\n"
+		newContent := trimmedContent + insertion
 		return os.WriteFile(path, []byte(newContent), 0644)
 	}
 }

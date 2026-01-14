@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { AppView, type OutlineItem } from '../types';
 import * as App from '../../wailsjs/go/main/App';
-import { generateOutline as aiGenerateOutline, generateSlides as aiGenerateSlides } from '../lib/ai';
+import { preprocessText, estimatePageCount, generateOutline as aiGenerateOutline, generateSlides as aiGenerateSlides } from '../lib/ai';
 
 const props = defineProps<{
   show: boolean;
@@ -17,9 +17,12 @@ const step = ref<1 | 2>(1);
 const topic = ref('');
 const projectName = ref('');
 const steps = ref<OutlineItem[]>([]);
+const isConfirmed = ref(false);
+const outlineVersion = ref<number | null>(null);
 const isLoading = ref(false);
 const loadingMessage = ref('');
 const config = ref<any>(null);
+const selectedTheme = ref('default');
 
 onMounted(async () => {
   try {
@@ -35,13 +38,33 @@ const generateOutline = async () => {
     alert("请先在设置中配置 AI API Key");
     return;
   }
-
   isLoading.value = true;
-  loadingMessage.value = 'AI 正在构思大纲...';
+  
   try {
-    // Using default prompts as StyleSelector is removed
-    steps.value = await aiGenerateOutline(config.value, topic.value);
+    // Step 1: 预处理长文，提取素材卡
+    loadingMessage.value = 'AI 正在提取关键信息...';
+    const cards = await preprocessText(config.value, topic.value);
+    
+    // Step 2: 估算页数
+    const estimatedPages = estimatePageCount(cards.length);
+    
+    // Step 3: 生成大纲
+    loadingMessage.value = 'AI 正在构思大纲...';
+    const outlineResult = await aiGenerateOutline(config.value, cards, estimatedPages);
+    
+    // Step 4: 转换为 UI 期望的格式
+    const outlineSlides = outlineResult.slides || [];
+    steps.value = outlineSlides.map((slide: any, index: number) => ({
+      id: slide.slide_id || String(index + 1).padStart(2, '0'),
+      title: slide.title || '',
+      type: index === 0 ? 'primary' : 'secondary',
+      children: (slide.bullets || slide.must_include || []).map((b: string) => ({ label: b }))
+    }));
+    
     step.value = 2;
+    // Reset confirmation when new outline is generated
+    isConfirmed.value = false;
+    outlineVersion.value = null;
   } catch (e: any) {
     console.error(e);
     alert(e.message || "大纲生成失败");
@@ -62,8 +85,23 @@ const createPresentation = async () => {
 
   try {
     const finalName = projectName.value.endsWith('.md') ? projectName.value : `${projectName.value}.md`;
-    const content = await aiGenerateSlides(config.value, steps.value);
+    const content = await aiGenerateSlides(config.value, steps.value, selectedTheme.value);
     
+    // Save outline to localStorage for coverage validation
+    try {
+      const outlineData = {
+        outline_version: 'v1',
+        slides: steps.value.map(s => ({
+          slide_id: s.id, // Using the ID we generated (01, 02...)
+          title: s.title,
+          must_include: s.children?.map(c => c.label) || []
+        }))
+      };
+      localStorage.setItem(`slidev_outline_${finalName}`, JSON.stringify(outlineData));
+    } catch (e) {
+      console.warn('Failed to save outline to localStorage', e);
+    }
+
     // Create the project file
     await App.CreateProject(finalName);
     await App.SaveSlides(finalName, content);
@@ -79,18 +117,36 @@ const createPresentation = async () => {
 };
 
 const reset = () => {
+  isConfirmed.value = false;
+  outlineVersion.value = null;
   step.value = 1;
   topic.value = '';
   projectName.value = '';
   steps.value = [];
+  selectedTheme.value = 'default';
   emit('close');
 };
 
+const toggleConfirm = () => {
+  if (isConfirmed.value) {
+    // Unlock
+    isConfirmed.value = false;
+    outlineVersion.value = null;
+  } else {
+    // Confirm
+    if (steps.value.length === 0) return;
+    isConfirmed.value = true;
+    outlineVersion.value = Date.now();
+  }
+};
+
 const removeStep = (id: string) => {
+  if (isConfirmed.value) return;
   steps.value = steps.value.filter(s => s.id !== id);
 };
 
 const addStep = () => {
+  if (isConfirmed.value) return;
   const newId = String(steps.value.length + 1).padStart(2, '0');
   steps.value.push({
     id: newId,
@@ -169,49 +225,99 @@ const addStep = () => {
           <div class="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#0b0f1a]">
             <div class="max-w-2xl mx-auto flex flex-col gap-6">
               <div v-for="item in steps" :key="item.id" class="group flex flex-col gap-2">
-                <div class="flex items-center gap-4">
-                  <div class="size-8 rounded-lg bg-slate-800 text-slate-400 border border-white/5 flex items-center justify-center text-[11px] font-bold shrink-0 shadow-lg">
-                    {{ item.id }}
+                  <div class="flex items-center gap-4">
+                    <div :class="`size-8 rounded-lg ${isConfirmed ? 'bg-primary/20 text-primary border-primary/50' : 'bg-slate-800 text-slate-400 border-white/5'} border flex items-center justify-center text-[11px] font-bold shrink-0 shadow-lg transition-colors`">
+                      <span v-if="isConfirmed" class="material-symbols-outlined text-sm">lock</span>
+                      <span v-else>{{ item.id }}</span>
+                    </div>
+                    <div :class="`flex-1 ${isConfirmed ? 'bg-[#1a2333]/30 border-primary/20' : 'bg-[#1a2333] border-white/5 hover:border-primary/40'} border p-4 rounded-xl flex items-center justify-between transition-all shadow-xl`">
+                      <input
+                        v-model="item.title"
+                        :disabled="isConfirmed"
+                        :class="`bg-transparent border-none focus:ring-0 text-sm font-bold w-full placeholder:text-slate-700 ${isConfirmed ? 'text-slate-400 cursor-not-allowed' : 'text-white'}`"
+                        placeholder="幻灯片标题..."
+                      />
+                      <button
+                        v-if="!isConfirmed"
+                        @click="removeStep(item.id)"
+                        class="text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-1"
+                      >
+                        <span class="material-symbols-outlined text-[20px]">delete</span>
+                      </button>
+                    </div>
                   </div>
-                  <div class="flex-1 bg-[#1a2333] border border-white/5 p-4 rounded-xl flex items-center justify-between hover:border-primary/40 transition-all shadow-xl">
-                    <input
-                      v-model="item.title"
-                      class="bg-transparent border-none focus:ring-0 text-sm font-bold text-white w-full placeholder:text-slate-700"
-                      placeholder="幻灯片标题..."
-                    />
-                    <button
-                      @click="removeStep(item.id)"
-                      class="text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-1"
+                </div>
+
+                <button
+                  v-if="!isConfirmed"
+                  @click="addStep"
+                  class="ml-12 w-fit flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-dashed border-white/10 text-[10px] font-bold text-slate-500 hover:text-primary hover:border-primary/50 transition-all uppercase tracking-widest"
+                >
+                  <span class="material-symbols-outlined text-lg">add_circle</span>
+                  添加幻灯片
+                </button>
+
+                <!-- Theme Selection -->
+                <div class="mt-8 border-t border-white/5 pt-8">
+                  <label class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 block">选择设计风格</label>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div 
+                      @click="!isConfirmed && (selectedTheme = 'default')"
+                      :class="`p-4 rounded-xl border cursor-pointer transition-all relative overflow-hidden group ${
+                        selectedTheme === 'default' 
+                          ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' 
+                          : 'bg-[#1a2333] border-white/10 hover:border-primary/50'
+                      } ${isConfirmed ? 'opacity-50 cursor-not-allowed grayscale' : ''}`"
                     >
-                      <span class="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-white">Default</span>
+                        <div v-if="selectedTheme === 'default'" class="text-primary">
+                          <span class="material-symbols-outlined text-lg">check_circle</span>
+                        </div>
+                      </div>
+                      <p class="text-xs text-slate-400">现代极简风格，适用于大多数演示场景</p>
+                    </div>
+
+                    <div 
+                      @click="!isConfirmed && (selectedTheme = 'seriph')"
+                      :class="`p-4 rounded-xl border cursor-pointer transition-all relative overflow-hidden group ${
+                        selectedTheme === 'seriph' 
+                          ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' 
+                          : 'bg-[#1a2333] border-white/10 hover:border-primary/50'
+                      } ${isConfirmed ? 'opacity-50 cursor-not-allowed grayscale' : ''}`"
+                    >
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="font-serif font-bold text-white">Seriph</span>
+                        <div v-if="selectedTheme === 'seriph'" class="text-primary">
+                          <span class="material-symbols-outlined text-lg">check_circle</span>
+                        </div>
+                      </div>
+                      <p class="text-xs text-slate-400 font-serif">优雅衬线风格，适合文档与阅读</p>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <footer class="p-6 border-t border-white/5 bg-[#1a2333]/50 flex items-center justify-between shrink-0 gap-6">
+              <div @click="toggleConfirm" class="flex items-center gap-3 cursor-pointer group select-none">
+                <div :class="`w-5 h-5 rounded flex items-center justify-center border transition-all ${isConfirmed ? 'bg-primary border-primary' : 'border-slate-600 group-hover:border-primary'}`">
+                  <span v-if="isConfirmed" class="material-symbols-outlined text-sm text-white">check</span>
+                </div>
+                <span :class="`text-xs font-bold uppercase tracking-widest transition-colors ${isConfirmed ? 'text-primary' : 'text-slate-500 group-hover:text-slate-300'}`">
+                  {{ isConfirmed ? '大纲已确认' : '确认大纲内容' }}
+                </span>
+              </div>
 
               <button
-                @click="addStep"
-                class="ml-12 w-fit flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-dashed border-white/10 text-[10px] font-bold text-slate-500 hover:text-primary hover:border-primary/50 transition-all uppercase tracking-widest"
+                @click="createPresentation"
+                :disabled="!projectName || isLoading || !isConfirmed"
+                class="bg-primary text-white h-12 px-8 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:grayscale group"
               >
-                <span class="material-symbols-outlined text-lg">add_circle</span>
-                添加幻灯片
+                生成幻灯片
+                <span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform">rocket_launch</span>
               </button>
-            </div>
-          </div>
-
-          <footer class="p-6 border-t border-white/5 bg-[#1a2333]/50 flex items-center justify-between shrink-0">
-            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-              AI 将根据以上大纲生成完整的 Markdown 内容
-            </p>
-            <button
-              @click="createPresentation"
-              :disabled="!projectName || isLoading"
-              class="bg-primary text-white h-12 px-8 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:grayscale group"
-            >
-              生成幻灯片
-              <span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform">rocket_launch</span>
-            </button>
-          </footer>
+            </footer>
         </div>
 
       </div>

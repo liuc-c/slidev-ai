@@ -27,6 +27,35 @@ export interface OutlineItem {
   children: { label: string; type: string }[];
 }
 
+// V1 Schema Types (from prompts-v1.md)
+export interface SourceCard {
+  card_id: string;
+  quote: string;
+  tags: string[];
+  importance: 'high' | 'medium' | 'low';
+}
+
+export interface OutlineSlide {
+  slide_id: string;
+  type: 'cover' | 'agenda' | 'content' | 'summary' | 'qa';
+  title: string;
+  purpose: '引入' | '定义' | '论证' | '对比' | '总结' | '行动' | '过渡';
+  density: 'low' | 'med' | 'high';
+  visual_hint: 'hero' | 'list' | 'table' | 'timeline' | 'diagram' | 'quote';
+  bullets: string[];
+  must_include: string[];
+  source_card_ids: string[];
+}
+
+export interface OutlineV1 {
+  outline_version: string;
+  meta: {
+    topic: string;
+    estimated_pages: number;
+  };
+  slides: OutlineSlide[];
+}
+
 // Prompt Style Types
 export interface PromptStyle {
   id: string;

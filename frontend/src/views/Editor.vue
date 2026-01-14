@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { AppView } from '../types';
 import * as App from '../../wailsjs/go/main/App';
 import { config } from '../../wailsjs/go/models';
-import { getChatStream } from '../lib/ai';
+import { getChatStream, validateCoverage, type CoverageReport } from '../lib/ai';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
@@ -48,8 +48,14 @@ const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优�
 - 每次工具调用只能操作一个页面
 - 如果需要添加2页，必须分开调用：先 insert_page，再 insert_page，然后分别 update_page
 - 插入第一个页面后，后续页面的索引会变化！例如：在第3页后插入新页面，新页面是第4页；再在第4页后插入，新页面是第5页
-- update_page 的 markdown 内容不要包含 --- 分隔符，只写页面内容
 - 先完成所有 insert_page，再依次 update_page
+
+📝 当使用 update_page 时（Polisher 规则）：
+- 只修改指定的页面
+- 保留第一行 <!-- slide_id: ... --> 锚点（如果存在）
+- 不要在页面内容中输出独立的 --- 行
+- 不要添加用户内容之外的新事实
+- 只输出该单个页面的更新后 markdown（不包含分隔符）
 
 示例：添加2页到第5页之后
 1. insert_page(afterIndex=5) → 新页面索引是6
@@ -191,10 +197,116 @@ const handleSubmit = async (e?: Event) => {
   }
 };
 
+const insertPage = async () => {
+  try {
+    isLoading.value = true;
+    // Insert after current page
+    await App.InsertPage(props.projectName, props.activeSlideIndex, 'default');
+    
+    // Refresh content
+    const newContent = await App.ReadSlides(props.projectName);
+    emit('update:markdown', newContent);
+    
+    // Navigation will be handled by Slidev automatically if the server is running, 
+    // but we might want to increment index here if we want the UI to reflect it.
+  } catch (e) {
+    console.error("Failed to insert page", e);
+    alert("插入幻灯片失败");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// Coverage Logic
+const activeTab = ref<'chat' | 'coverage'>('chat');
+const coverageReport = ref<CoverageReport | null>(null);
+const outline = ref<any>(null);
+const isFixing = ref(false);
+
+const loadOutline = () => {
+  try {
+    const saved = localStorage.getItem(`slidev_outline_${props.projectName}`);
+    if (saved) {
+      outline.value = JSON.parse(saved);
+      runCoverageValidation();
+    }
+  } catch (e) {
+    console.warn('Failed to load outline', e);
+  }
+};
+
+const runCoverageValidation = () => {
+  if (!outline.value || !props.markdown) return;
+  coverageReport.value = validateCoverage(outline.value, props.markdown);
+};
+
+// Watch for markdown changes to re-validate
+watch(() => props.markdown, () => {
+  if (outline.value) {
+    runCoverageValidation();
+  }
+});
+
+const applyAllPatches = async () => {
+  if (!coverageReport.value || !coverageReport.value.proposed_patches.length) return;
+  
+  isFixing.value = true;
+  try {
+    // Apply patches sequentially. We re-validate after each step to handle index shifts safely.
+    // Limit to 20 iterations to prevent infinite loops
+    for (let i = 0; i < 20; i++) {
+      // Re-run validation to get current valid patches
+      const currentReport = validateCoverage(outline.value, props.markdown);
+      if (!currentReport.proposed_patches.length) break;
+
+      const patch = currentReport.proposed_patches[0]; // Take the first one
+      
+      if (patch.type === 'insert_slide') {
+        const afterIndex = (patch.insert_at_index !== undefined) ? patch.insert_at_index - 1 : -1;
+        // Strategy: Insert at correct position, then Update with markdown
+        await App.InsertPage(props.projectName, afterIndex, 'default');
+        
+        const newPageIndex = afterIndex + 1;
+        
+        if (patch.markdown) {
+             // App.UpdatePage replaces content. patch.markdown includes "<!-- slide_id... -->"
+             await App.UpdatePage(props.projectName, newPageIndex, patch.markdown);
+        }
+        
+      } else if (patch.type === 'append_bullets' && patch.page_index !== undefined) {
+        // We simply construct the new content.
+        const slides = props.markdown.split(/\n---\n/);
+        const currentSlideContent = slides[patch.page_index];
+        
+        if (currentSlideContent) {
+           const bullets = patch.append?.map(b => `- ${b}`).join('\n') || '';
+           const newContent = `${currentSlideContent.trim()}\n\n${bullets}`;
+           await App.UpdatePage(props.projectName, patch.page_index, newContent);
+        }
+      }
+      
+      // Refresh markdown after each patch
+      const newContent = await App.ReadSlides(props.projectName);
+      emit('update:markdown', newContent);
+    }
+    
+    // Final check
+    runCoverageValidation();
+    // alert('✅ 所有修正已应用！');
+    
+  } catch (e) {
+    console.error('Failed to apply patches', e);
+    alert('❌ 自动修正过程中出错');
+  } finally {
+    isFixing.value = false;
+  }
+};
+
 onMounted(async () => {
   try {
     aiConfig.value = await App.GetSettings();
     isConfigLoaded.value = true;
+    loadOutline();
   } catch (e) {
     console.error("Failed to get settings", e);
   }
@@ -217,25 +329,11 @@ const previewData = computed(() => {
   return { title, description, count: contentSlides.length };
 });
 
-const insertPage = async () => {
-  try {
-    isLoading.value = true;
-    // Insert after current page
-    await App.InsertPage(props.projectName, props.activeSlideIndex, 'default');
-    
-    // Refresh content
-    const newContent = await App.ReadSlides(props.projectName);
-    emit('update:markdown', newContent);
-    
-    // Navigation will be handled by Slidev automatically if the server is running, 
-    // but we might want to increment index here if we want the UI to reflect it.
-  } catch (e) {
-    console.error("Failed to insert page", e);
-    alert("插入幻灯片失败");
-  } finally {
-    isLoading.value = false;
-  }
-};
+const currentSlideIssues = computed(() => {
+  if (!coverageReport.value) return null;
+  return coverageReport.value.missing_points.find(p => p.page_index === props.activeSlideIndex);
+});
+
 
 </script>
 
@@ -248,6 +346,10 @@ const insertPage = async () => {
           <span class="text-[10px] font-bold text-[#90a4cb] uppercase tracking-widest">实时预览</span>
           <div class="h-4 w-px bg-border-dark"></div>
           <span class="text-[10px] text-[#90a4cb] font-bold">页面 {{ activeSlideIndex + 1 }} / {{ previewData.count }}</span>
+          <div v-if="currentSlideIssues" class="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded text-amber-400" title="当前页面存在内容缺失">
+              <span class="material-symbols-outlined text-[14px]">warning</span>
+              <span class="text-[9px] font-bold">缺失内容</span>
+          </div>
         </div>
           <div class="flex items-center gap-2 text-[#90a4cb]">
             <button 
@@ -286,65 +388,166 @@ const insertPage = async () => {
     <!-- AI Panel -->
     <aside class="flex-[2] flex flex-col bg-panel-dark">
         <div class="flex border-b border-border-dark px-4 shrink-0 h-14">
-          <div class="flex-1 flex flex-col items-center justify-center border-b-[3px] border-primary text-white shadow-[0_4px_12px_rgba(13,89,242,0.1)]">
-            <p class="text-xs font-bold tracking-widest flex items-center gap-2 uppercase">
-              <span class="material-symbols-outlined text-[18px]">forum</span>
-              AI 协作
-            </p>
-          </div>
+          <!-- Tabs -->
+          <button 
+            @click="activeTab = 'chat'"
+            :class="`flex-1 flex flex-col items-center justify-center border-b-[3px] text-xs font-bold tracking-widest uppercase gap-2 transition-colors ${activeTab === 'chat' ? 'border-primary text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`"
+          >
+            <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">forum</span> AI 协作</span>
+          </button>
+          <button 
+            @click="activeTab = 'coverage'"
+            :class="`flex-1 flex flex-col items-center justify-center border-b-[3px] text-xs font-bold tracking-widest uppercase gap-2 transition-colors ${activeTab === 'coverage' ? 'border-amber-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`"
+          >
+            <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">fact_check</span> 覆盖率检查</span>
+             <span v-if="coverageReport?.missing_slides.length || coverageReport?.missing_points.length" class="absolute top-2 right-4 w-2 h-2 bg-amber-500 rounded-full"></span>
+          </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6">
-          <!-- Config warning -->
-          <div v-if="isConfigLoaded && !aiConfig?.ai?.apiKey" class="bg-amber-500/20 border border-amber-500/50 rounded-xl p-4 text-amber-300 text-sm">
-            <span class="material-symbols-outlined text-lg align-middle mr-2">warning</span>
-            请先在设置中配置 AI API Key
-          </div>
+        <!-- Chat View -->
+        <div v-if="activeTab === 'chat'" class="flex-1 flex flex-col min-h-0">
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6">
+              <!-- Config warning -->
+              <div v-if="isConfigLoaded && !aiConfig?.ai?.apiKey" class="bg-amber-500/20 border border-amber-500/50 rounded-xl p-4 text-amber-300 text-sm">
+                <span class="material-symbols-outlined text-lg align-middle mr-2">warning</span>
+                请先在设置中配置 AI API Key
+              </div>
 
-          <div v-for="msg in messages" :key="msg.id" :class="`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-3`">
-            <div v-if="msg.role === 'assistant'" class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0 shadow-sm shadow-emerald-500/10">
-              <span class="material-symbols-outlined text-[20px]">memory</span>
-            </div>
-            <div class="flex flex-col gap-1 max-w-[85%]">
-              <div :class="`p-4 rounded-xl text-sm leading-relaxed shadow-lg whitespace-pre-wrap ${
-                msg.role === 'user'
-                  ? 'bg-primary text-white rounded-tr-none'
-                  : 'bg-[#222f49] text-slate-200 rounded-tl-none'
-              }`">
-                  {{ msg.content }}
+              <div v-for="msg in messages" :key="msg.id" :class="`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-3`">
+                <div v-if="msg.role === 'assistant'" class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0 shadow-sm shadow-emerald-500/10">
+                  <span class="material-symbols-outlined text-[20px]">memory</span>
+                </div>
+                <div class="flex flex-col gap-1 max-w-[85%]">
+                  <div :class="`p-4 rounded-xl text-sm leading-relaxed shadow-lg whitespace-pre-wrap ${
+                    msg.role === 'user'
+                      ? 'bg-primary text-white rounded-tr-none'
+                      : 'bg-[#222f49] text-slate-200 rounded-tl-none'
+                  }`">
+                      {{ msg.content }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Loading indicator -->
+              <div v-if="isLoading" class="flex justify-start items-start gap-3">
+                <div class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
+                  <span class="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                </div>
+                <div class="bg-[#222f49] text-slate-400 p-4 rounded-xl rounded-tl-none text-sm">
+                  思考中...
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Loading indicator -->
-          <div v-if="isLoading" class="flex justify-start items-start gap-3">
-            <div class="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
-              <span class="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+            <div class="p-4 border-t border-border-dark bg-background-dark/30 shrink-0">
+              <form @submit="handleSubmit" class="relative">
+                <textarea
+                  v-model="input"
+                  @keydown.enter.prevent="!$event.shiftKey && handleSubmit($event)"
+                  class="w-full bg-[#0a0f18] border border-border-dark rounded-xl p-4 pr-12 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600 resize-none font-sans min-h-[100px] shadow-inner"
+                  placeholder="尝试说：'把标题改成赛博朋克风格'..."
+                  :disabled="!aiConfig?.ai?.apiKey"
+                ></textarea>
+                <button
+                  type="submit"
+                  :disabled="!aiConfig?.ai?.apiKey || isLoading"
+                  class="absolute bottom-3 right-3 bg-primary text-white size-10 rounded-lg flex items-center justify-center hover:bg-primary/80 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span class="material-symbols-outlined text-[22px]">send</span>
+                </button>
+              </form>
             </div>
-            <div class="bg-[#222f49] text-slate-400 p-4 rounded-xl rounded-tl-none text-sm">
-              思考中...
-            </div>
-          </div>
         </div>
 
-        <div class="p-4 border-t border-border-dark bg-background-dark/30 shrink-0">
-          <form @submit="handleSubmit" class="relative">
-            <textarea
-              v-model="input"
-              @keydown.enter.prevent="!$event.shiftKey && handleSubmit($event)"
-              class="w-full bg-[#0a0f18] border border-border-dark rounded-xl p-4 pr-12 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600 resize-none font-sans min-h-[100px] shadow-inner"
-              placeholder="尝试说：'把标题改成赛博朋克风格'..."
-              :disabled="!aiConfig?.ai?.apiKey"
-            ></textarea>
-            <button
-              type="submit"
-              :disabled="!aiConfig?.ai?.apiKey || isLoading"
-              class="absolute bottom-3 right-3 bg-primary text-white size-10 rounded-lg flex items-center justify-center hover:bg-primary/80 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span class="material-symbols-outlined text-[22px]">send</span>
-            </button>
-          </form>
+        <!-- Coverage View -->
+        <div v-else class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6">
+            <template v-if="!outline">
+                <div class="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+                    <span class="material-symbols-outlined text-4xl opacity-50">content_paste_off</span>
+                    <p class="text-sm">未找到大纲数据</p>
+                    <p class="text-xs opacity-60">请重新生成大纲以使用覆盖率检查</p>
+                </div>
+            </template>
+            <template v-else-if="!coverageReport">
+                 <div class="flex items-center gap-2 text-slate-400">
+                    <span class="material-symbols-outlined animate-spin">sync</span>
+                    分析中...
+                 </div>
+            </template>
+            <template v-else>
+                <!-- Summary Card -->
+                <div class="bg-[#222f49] rounded-xl p-5 border border-border-dark flex items-center justify-between">
+                    <div>
+                         <p class="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">覆盖率状态</p>
+                         <h3 :class="`text-xl font-bold ${coverageReport.missing_slides.length === 0 && coverageReport.missing_points.length === 0 ? 'text-emerald-400' : 'text-amber-400'}`">
+                             {{ coverageReport.missing_slides.length === 0 && coverageReport.missing_points.length === 0 ? '完美覆盖' : '发现遗漏' }}
+                         </h3>
+                    </div>
+                     <div class="text-right">
+                         <p class="text-xs text-slate-400">缺失幻灯片: <span class="text-white font-bold">{{ coverageReport.missing_slides.length }}</span></p>
+                         <p class="text-xs text-slate-400">缺失要点: <span class="text-white font-bold">{{ coverageReport.missing_points.length }}</span></p>
+                     </div>
+                </div>
+
+                <!-- Missing Slides -->
+                <div v-if="coverageReport.missing_slides.length > 0">
+                    <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-500 text-base">warning</span>
+                        缺失幻灯片
+                    </h4>
+                    <div class="flex flex-col gap-3">
+                        <div v-for="slide in coverageReport.missing_slides" :key="slide.slide_id" class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-amber-300 font-bold text-sm">{{ slide.title }}</span>
+                                <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">ID: {{ slide.slide_id }}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mb-2">{{ slide.reason }}</p>
+                            <div class="flex flex-wrap gap-1">
+                                <span v-for="point in slide.must_include" :key="point" class="text-[10px] bg-black/20 text-slate-400 px-1.5 py-0.5 rounded border border-white/5">{{ point }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Missing Points -->
+                <div v-if="coverageReport.missing_points.length > 0">
+                    <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-500 text-base">warning</span>
+                        缺失内容要点
+                    </h4>
+                    <div class="flex flex-col gap-3">
+                        <div v-for="point in coverageReport.missing_points" :key="point.slide_id" class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-amber-300 font-bold text-sm">{{ point.title }}</span>
+                                <span class="text-[10px] text-slate-500">第 {{ point.page_index + 1 }} 页</span>
+                            </div>
+                            <ul class="list-disc list-inside text-xs text-slate-300 space-y-1">
+                                <li v-for="m in point.missing" :key="m">{{ m }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                 <!-- Success State -->
+                 <div v-if="coverageReport.missing_slides.length === 0 && coverageReport.missing_points.length === 0" class="flex flex-col items-center justify-center py-10 opacity-60">
+                     <span class="material-symbols-outlined text-5xl text-emerald-500 mb-4">check_circle</span>
+                     <p class="text-slate-400 text-sm">当前幻灯片内容已完全覆盖大纲要求</p>
+                 </div>
+
+                <!-- Fix Button -->
+                <div v-if="coverageReport.proposed_patches.length > 0" class="sticky bottom-0 pt-4 bg-gradient-to-t from-panel-dark to-transparent">
+                    <button 
+                        @click="applyAllPatches"
+                        :disabled="isFixing"
+                        class="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black font-bold py-3 rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+                    >
+                        <span v-if="isFixing" class="material-symbols-outlined animate-spin text-xl">sync</span>
+                        <span v-else class="material-symbols-outlined text-xl">auto_fix</span>
+                        {{ isFixing ? '正在应用修正...' : `自动应用 ${coverageReport.proposed_patches.length} 个补丁` }}
+                    </button>
+                </div>
+            </template>
         </div>
-      </aside>
+    </aside>
   </div>
 </template>

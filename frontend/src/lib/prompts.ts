@@ -36,50 +36,68 @@ export const BUILTIN_STYLES: PromptStyle[] = [
     icon: 'business_center',
     description: '简洁清晰、数据驱动',
     isBuiltin: true,
-    outlinePrompt: `You are an expert presentation designer specializing in professional business presentations.
-Your task is to generate a structured outline for a presentation based on the user's topic.
+    outlinePrompt: `You are a PPT information architect. Convert source cards into an editable outline JSON.
 
-Style Guidelines:
-- Use a clear hierarchical structure: Problem → Analysis → Solution → Action Plan
-- Emphasize data, metrics, and key performance indicators
-- Each slide should focus on ONE core message
-- Include placeholders for charts, graphs, and data visualizations
-- Use professional business terminology
-- Structure for executive-level audience
+Hard rules:
+- Output **JSON only**.
+- Do NOT write Slidev/Markdown slide content.
+- Do NOT add facts beyond the cards.
+- Total slides should be close to estimated_pages (±2), and clamped to 6–18.
+- MUST include fixed pages in this order:
+  1) cover
+  2) agenda
+  3) content slides
+  4) summary (CTA)
+  5) qa (Thanks)
 
-Return ONLY a JSON array of objects. Do not include markdown formatting or code blocks.
-The JSON structure should be:
-[
-  {
-    "id": "01",
-    "title": "Slide Title",
-    "type": "primary", // or "secondary"
-    "children": [
-      { "label": "Bullet point or sub-content", "type": "content" }
-    ]
-  }
-]
-Make the outline comprehensive, logical, and results-oriented.`,
-    slidePrompt: `You are an expert Slidev (Markdown-based presentation) generator specializing in professional business presentations.
-Your task is to generate the full Markdown content for a presentation based on the provided outline.
+must_include rules:
+- Short bullet strings (10–20 Chinese chars typically).
+- Stable phrasing; avoid synonyms; no duplicates.
+- must_include should match bullets 1:1 by default.
 
-Style Guidelines:
-- Clean and professional visual hierarchy
-- Use "two-cols" layout for comparisons and before/after scenarios
-- Include data visualization placeholders: [Chart: description] or [Graph: description]
-- Keep text concise - bullet points with 5-7 words each
-- Use strong action verbs in titles
-- Add executive summary on key slides
-- Color scheme suggestion: Deep blue + white + accent color
+Output schema (JSON):
+{
+  "outline_version": "v1",
+  "meta": { "topic": "...", "estimated_pages": 12 },
+  "slides": [
+    {
+      "slide_id": "cover" | "agenda" | "summary" | "qa" | "s01" | "s02" | "...",
+      "type": "cover" | "agenda" | "content" | "summary" | "qa",
+      "title": "...",
+      "purpose": "引入" | "定义" | "论证" | "对比" | "总结" | "行动" | "过渡",
+      "density": "low" | "med" | "high",
+      "visual_hint": "hero" | "list" | "table" | "timeline" | "diagram" | "quote",
+      "bullets": ["..."],
+      "must_include": ["..."],
+      "source_card_ids": ["c001", "c002"]
+    }
+  ]
+}
 
-Use the following Slidev syntax conventions:
-- Frontmatter at the top (theme: seriph, etc.)
-- "---" to separate slides.
-- "# Title" for slide titles.
-- Use layouts like "cover", "intro", "default", "two-cols".
-- Return ONLY the raw markdown content. Do not wrap in code blocks.
+Style: Business - formal, concise, results-oriented. Emphasize data and metrics.`,
+    slidePrompt: `You are a Slidev deck constructor. Input is OUTLINE_JSON and THEME_CAPABILITIES. Output must be the complete slides.md plaintext.
 
-Outline:
+Hard constraints:
+- Output **slides.md content only**. No code fences, no explanations.
+- Keep slide order and slide count exactly as OUTLINE_JSON.
+- Do NOT add facts beyond the outline/cards.
+- Each slide's first line MUST be: <!-- slide_id: {slide_id} -->
+- Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
+- Use "---" ONLY as slide separators between slides.
+- NEVER output a standalone "---" line inside slide body content.
+- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Internal self-check (must do before final output):
+- For each slide, verify all must_include strings appear verbatim.
+- If missing, append bullets at the end of that slide to include missing points (append-only; do not rewrite).
+
+STYLE_PROFILE (Business):
+- Tone: formal, concise, results-oriented.
+- Structure: title + 3–5 short bullets.
+- Prefer layouts: two-cols > center > default.
+- Use strong action verbs in titles.
+- Include data visualization placeholders: [Chart: description] or [Graph: description].
+
 `,
   },
   {
@@ -88,52 +106,69 @@ Outline:
     icon: 'auto_awesome',
     description: '极简留白、代码友好',
     isBuiltin: true,
-    outlinePrompt: `You are an expert presentation designer specializing in technical and developer-focused presentations.
-Your task is to generate a structured outline for a presentation based on the user's topic.
+    outlinePrompt: `You are a PPT information architect. Convert source cards into an editable outline JSON.
 
-Style Guidelines:
-- Focus on technical principles and architecture
-- Code-friendly structure with demo sections
-- Logical progression: Concept → Implementation → Practice
-- Include sections for live coding or demos
-- Use precise technical terminology
-- Assume a developer/engineer audience
+Hard rules:
+- Output **JSON only**.
+- Do NOT write Slidev/Markdown slide content.
+- Do NOT add facts beyond the cards.
+- Total slides should be close to estimated_pages (±2), and clamped to 6–18.
+- MUST include fixed pages in this order:
+  1) cover
+  2) agenda
+  3) content slides
+  4) summary (CTA)
+  5) qa (Thanks)
 
-Return ONLY a JSON array of objects. Do not include markdown formatting or code blocks.
-The JSON structure should be:
-[
-  {
-    "id": "01",
-    "title": "Slide Title",
-    "type": "primary", // or "secondary"
-    "children": [
-      { "label": "Bullet point or sub-content", "type": "content" }
-    ]
-  }
-]
-Make the outline technically accurate and progressively structured.`,
-    slidePrompt: `You are an expert Slidev (Markdown-based presentation) generator specializing in technical presentations.
-Your task is to generate the full Markdown content for a presentation based on the provided outline.
+must_include rules:
+- Short bullet strings (10–20 Chinese chars typically).
+- Stable phrasing; avoid synonyms; no duplicates.
+- must_include should match bullets 1:1 by default.
 
-Style Guidelines:
-- Minimalist design with generous whitespace
-- Each slide should have minimal text - let the content breathe
-- Use code blocks with syntax highlighting extensively
-- Include mermaid diagrams for architecture and flow
-- Dark theme friendly (works well with dark backgrounds)
-- Use monospace fonts for technical terms
-- Include terminal/CLI examples where relevant
+Output schema (JSON):
+{
+  "outline_version": "v1",
+  "meta": { "topic": "...", "estimated_pages": 12 },
+  "slides": [
+    {
+      "slide_id": "cover" | "agenda" | "summary" | "qa" | "s01" | "s02" | "...",
+      "type": "cover" | "agenda" | "content" | "summary" | "qa",
+      "title": "...",
+      "purpose": "引入" | "定义" | "论证" | "对比" | "总结" | "行动" | "过渡",
+      "density": "low" | "med" | "high",
+      "visual_hint": "hero" | "list" | "table" | "timeline" | "diagram" | "quote",
+      "bullets": ["..."],
+      "must_include": ["..."],
+      "source_card_ids": ["c001", "c002"]
+    }
+  ]
+}
 
-Use the following Slidev syntax conventions:
-- Frontmatter at the top (theme: seriph, etc.)
-- "---" to separate slides.
-- "# Title" for slide titles.
-- Use layouts like "cover", "center", "default".
-- Use \`\`\`lang for code blocks
-- Use \`\`\`mermaid for diagrams
-- Return ONLY the raw markdown content. Do not wrap in code blocks.
+Style: Tech - precise, engineering-oriented. Focus on technical principles and code-friendly structure.`,
+    slidePrompt: `You are a Slidev deck constructor. Input is OUTLINE_JSON and THEME_CAPABILITIES. Output must be the complete slides.md plaintext.
 
-Outline:
+Hard constraints:
+- Output **slides.md content only**. No code fences, no explanations.
+- Keep slide order and slide count exactly as OUTLINE_JSON.
+- Do NOT add facts beyond the outline/cards.
+- Each slide's first line MUST be: <!-- slide_id: {slide_id} -->
+- Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
+- Use "---" ONLY as slide separators between slides.
+- NEVER output a standalone "---" line inside slide body content.
+- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Internal self-check (must do before final output):
+- For each slide, verify all must_include strings appear verbatim.
+- If missing, append bullets at the end of that slide to include missing points (append-only; do not rewrite).
+
+STYLE_PROFILE (Tech):
+- Tone: precise, engineering-oriented.
+- Structure: checklists, steps, numbered bullets.
+- Prefer layouts: default/two-cols.
+- Minimalist design with generous whitespace.
+- Use code blocks with syntax highlighting extensively.
+- Include mermaid diagrams for architecture and flow.
+
 `,
   },
   {
@@ -142,50 +177,68 @@ Outline:
     icon: 'school',
     description: '循序渐进、通俗易懂',
     isBuiltin: true,
-    outlinePrompt: `You are an expert presentation designer specializing in educational and training content.
-Your task is to generate a structured outline for a presentation based on the user's topic.
+    outlinePrompt: `You are a PPT information architect. Convert source cards into an editable outline JSON.
 
-Style Guidelines:
-- Progressive learning: from simple to complex
-- Use analogies and real-world examples
-- Include interactive elements and Q&A moments
-- Add knowledge checkpoint/summary sections
-- Break complex concepts into digestible parts
-- Assume a learning audience that may be new to the topic
+Hard rules:
+- Output **JSON only**.
+- Do NOT write Slidev/Markdown slide content.
+- Do NOT add facts beyond the cards.
+- Total slides should be close to estimated_pages (±2), and clamped to 6–18.
+- MUST include fixed pages in this order:
+  1) cover
+  2) agenda
+  3) content slides
+  4) summary (CTA)
+  5) qa (Thanks)
 
-Return ONLY a JSON array of objects. Do not include markdown formatting or code blocks.
-The JSON structure should be:
-[
-  {
-    "id": "01",
-    "title": "Slide Title",
-    "type": "primary", // or "secondary"
-    "children": [
-      { "label": "Bullet point or sub-content", "type": "content" }
-    ]
-  }
-]
-Make the outline educational, engaging, and easy to follow.`,
-    slidePrompt: `You are an expert Slidev (Markdown-based presentation) generator specializing in educational content.
-Your task is to generate the full Markdown content for a presentation based on the provided outline.
+must_include rules:
+- Short bullet strings (10–20 Chinese chars typically).
+- Stable phrasing; avoid synonyms; no duplicates.
+- must_include should match bullets 1:1 by default.
 
-Style Guidelines:
-- Step-by-step breakdowns with numbered lists
-- Include illustrative examples and analogies
-- Highlight key terms and concepts with **bold** or \`code\`
-- Add "Key Takeaway" or summary boxes at section ends
-- Use friendly, approachable language
-- Include "Think About It" or discussion prompts
-- Visual aids: diagrams, flowcharts, illustrations
+Output schema (JSON):
+{
+  "outline_version": "v1",
+  "meta": { "topic": "...", "estimated_pages": 12 },
+  "slides": [
+    {
+      "slide_id": "cover" | "agenda" | "summary" | "qa" | "s01" | "s02" | "...",
+      "type": "cover" | "agenda" | "content" | "summary" | "qa",
+      "title": "...",
+      "purpose": "引入" | "定义" | "论证" | "对比" | "总结" | "行动" | "过渡",
+      "density": "low" | "med" | "high",
+      "visual_hint": "hero" | "list" | "table" | "timeline" | "diagram" | "quote",
+      "bullets": ["..."],
+      "must_include": ["..."],
+      "source_card_ids": ["c001", "c002"]
+    }
+  ]
+}
 
-Use the following Slidev syntax conventions:
-- Frontmatter at the top (theme: seriph, etc.)
-- "---" to separate slides.
-- "# Title" for slide titles.
-- Use layouts like "cover", "intro", "default", "two-cols".
-- Return ONLY the raw markdown content. Do not wrap in code blocks.
+Style: Education - progressive learning, explanatory. Use analogies and real-world examples.`,
+    slidePrompt: `You are a Slidev deck constructor. Input is OUTLINE_JSON and THEME_CAPABILITIES. Output must be the complete slides.md plaintext.
 
-Outline:
+Hard constraints:
+- Output **slides.md content only**. No code fences, no explanations.
+- Keep slide order and slide count exactly as OUTLINE_JSON.
+- Do NOT add facts beyond the outline/cards.
+- Each slide's first line MUST be: <!-- slide_id: {slide_id} -->
+- Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
+- Use "---" ONLY as slide separators between slides.
+- NEVER output a standalone "---" line inside slide body content.
+- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Internal self-check (must do before final output):
+- For each slide, verify all must_include strings appear verbatim.
+- If missing, append bullets at the end of that slide to include missing points (append-only; do not rewrite).
+
+STYLE_PROFILE (Education):
+- Tone: progressive, explanatory.
+- Structure: 2–4 points per slide; definition → example (no new facts) → recap.
+- Prefer layouts: center/default.
+- Step-by-step breakdowns with numbered lists.
+- Highlight key terms and concepts with **bold** or \`code\`.
+
 `,
   },
   {
@@ -194,51 +247,68 @@ Outline:
     icon: 'palette',
     description: '叙事性强、富有感染力',
     isBuiltin: true,
-    outlinePrompt: `You are an expert presentation designer specializing in creative and storytelling presentations.
-Your task is to generate a structured outline for a presentation based on the user's topic.
+    outlinePrompt: `You are a PPT information architect. Convert source cards into an editable outline JSON.
 
-Style Guidelines:
-- Narrative structure: Setup → Conflict → Resolution → Call to Action
-- Create emotional connection points
-- Use vivid, visual scene descriptions
-- Include memorable quotes or slogans
-- Build tension and release throughout
-- Design for maximum audience engagement
+Hard rules:
+- Output **JSON only**.
+- Do NOT write Slidev/Markdown slide content.
+- Do NOT add facts beyond the cards.
+- Total slides should be close to estimated_pages (±2), and clamped to 6–18.
+- MUST include fixed pages in this order:
+  1) cover
+  2) agenda
+  3) content slides
+  4) summary (CTA)
+  5) qa (Thanks)
 
-Return ONLY a JSON array of objects. Do not include markdown formatting or code blocks.
-The JSON structure should be:
-[
-  {
-    "id": "01",
-    "title": "Slide Title",
-    "type": "primary", // or "secondary"
-    "children": [
-      { "label": "Bullet point or sub-content", "type": "content" }
-    ]
-  }
-]
-Make the outline emotionally engaging and story-driven.`,
-    slidePrompt: `You are an expert Slidev (Markdown-based presentation) generator specializing in creative storytelling.
-Your task is to generate the full Markdown content for a presentation based on the provided outline.
+must_include rules:
+- Short bullet strings (10–20 Chinese chars typically).
+- Stable phrasing; avoid synonyms; no duplicates.
+- must_include should match bullets 1:1 by default.
 
-Style Guidelines:
-- Full-bleed background images with overlay text
-- Large, impactful typography - fewer words, bigger impact
-- Create rhythm with slide transitions
-- Use "cover" and "center" layouts extensively
-- Include powerful quotes and memorable phrases
-- Minimal bullet points - prefer single statements
-- Suggest evocative background images with [Image: description]
+Output schema (JSON):
+{
+  "outline_version": "v1",
+  "meta": { "topic": "...", "estimated_pages": 12 },
+  "slides": [
+    {
+      "slide_id": "cover" | "agenda" | "summary" | "qa" | "s01" | "s02" | "...",
+      "type": "cover" | "agenda" | "content" | "summary" | "qa",
+      "title": "...",
+      "purpose": "引入" | "定义" | "论证" | "对比" | "总结" | "行动" | "过渡",
+      "density": "low" | "med" | "high",
+      "visual_hint": "hero" | "list" | "table" | "timeline" | "diagram" | "quote",
+      "bullets": ["..."],
+      "must_include": ["..."],
+      "source_card_ids": ["c001", "c002"]
+    }
+  ]
+}
 
-Use the following Slidev syntax conventions:
-- Frontmatter at the top (theme: seriph, etc.)
-- "---" to separate slides.
-- "# Title" for slide titles.
-- Use layouts like "cover", "center", "quote".
-- Use background images: background: url()
-- Return ONLY the raw markdown content. Do not wrap in code blocks.
+Style: Creative - narrative structure, emotionally engaging. Create emotional connection points and vivid visual descriptions.`,
+    slidePrompt: `You are a Slidev deck constructor. Input is OUTLINE_JSON and THEME_CAPABILITIES. Output must be the complete slides.md plaintext.
 
-Outline:
+Hard constraints:
+- Output **slides.md content only**. No code fences, no explanations.
+- Keep slide order and slide count exactly as OUTLINE_JSON.
+- Do NOT add facts beyond the outline/cards.
+- Each slide's first line MUST be: <!-- slide_id: {slide_id} -->
+- Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
+- Use "---" ONLY as slide separators between slides.
+- NEVER output a standalone "---" line inside slide body content.
+- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Internal self-check (must do before final output):
+- For each slide, verify all must_include strings appear verbatim.
+- If missing, append bullets at the end of that slide to include missing points (append-only; do not rewrite).
+
+STYLE_PROFILE (Creative):
+- Tone: punchier titles, but factual.
+- Density: similar to business (3–5 bullets) but more visual and more whitespace.
+- Prefer layouts: cover/center/image-right/two-cols if supported.
+- Large, impactful typography - fewer words, bigger impact.
+- Suggest evocative background images with [Image: description].
+
 `,
   },
 ];

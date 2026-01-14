@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { AppView } from '../types';
+import CreateProjectModal from '../components/CreateProjectModal.vue';
 
 const props = defineProps<{
   projectName?: string; // Not used in this component but passed by router-view
@@ -13,6 +15,7 @@ const emit = defineEmits<{
 
 const viewMode = ref<'grid' | 'list'>('grid');
 const projects = ref<any[]>([]);
+const showCreateModal = ref(false);
 
 const fetchProjects = async () => {
   if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
@@ -26,23 +29,18 @@ onMounted(() => {
 
 const onOpenProject = (name: string) => {
   emit('update:projectName', name);
-  emit('update:activeView', 'editor_code');
+  emit('update:activeView', AppView.EDITOR_AI);
 };
 
-const onCreateProject = async () => {
-  const name = prompt("请输入新项目名称 (例如: my-slides)", "untitled_project");
-  if (!name) return;
+const onCreateProject = () => {
+  showCreateModal.value = true;
+};
 
-  const finalName = name.endsWith('.md') ? name : `${name}.md`;
-
-  if ((window as any).go && (window as any).go.main && (window as any).go.main.App) {
-    await (window as any).go.main.App.CreateProject(finalName);
-    await fetchProjects();
-  }
-
-  emit('update:projectName', finalName);
+const onProjectCreated = async (payload: { name: string; content: string }) => {
+  await fetchProjects();
+  emit('update:projectName', payload.name);
   emit('update:activeSlideIndex', 0);
-  emit('update:activeView', 'planner');
+  emit('update:activeView', AppView.EDITOR_AI);
 };
 
 const onDeleteProject = async (name: string, event: Event) => {
@@ -181,11 +179,23 @@ const onDeleteProject = async (name: string, event: Event) => {
                     <span class="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
-              </div>
-            </div>
+      </div>
+    </div>
+
+    <CreateProjectModal 
+      :show="showCreateModal" 
+      @close="showCreateModal = false"
+      @created="onProjectCreated"
+    />
           </div>
         </template>
       </div>
     </div>
+
+    <CreateProjectModal 
+      :show="showCreateModal" 
+      @close="showCreateModal = false"
+      @created="onProjectCreated"
+    />
   </div>
 </template>

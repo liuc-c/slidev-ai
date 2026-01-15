@@ -125,6 +125,14 @@ func (a *App) ApplyTheme(filename string, themeName string) error {
 	return a.tools.ApplyGlobalTheme(filename, themeName)
 }
 
+// ExportSlides exports the slides to PDF
+func (a *App) ExportSlides(filename string) error {
+	if filename == "" {
+		filename = "slides.md"
+	}
+	return a.tools.ExportSlides(filename)
+}
+
 // CheckForUpdates checks if there is a new version available
 func (a *App) CheckForUpdates() (*updater.UpdateInfo, error) {
 	// TODO: Replace with actual owner/repo

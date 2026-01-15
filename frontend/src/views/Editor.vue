@@ -44,7 +44,14 @@ const systemPrompt = `你是 Slidev AI 助手，专门帮助用户编辑和优�
 2. insert_page(afterIndex, layout) - 在指定页面后插入新空白页面。afterIndex 从 0 开始。插入后新页面的索引是 afterIndex + 1。
 3. apply_theme(themeName) - 应用主题。
 
-⚠️ 重要规则：
+⚠️ 布局与视觉增强规则 (Director Mode)：
+- **布局多样性**：不要连续使用相同布局（default除外）。尝试使用 'image-right', 'quote', 'center', 'two-cols'。
+- **视觉注入**：为每个内容页提取英文关键词，添加到 frontmatter: image: https://source.unsplash.com/1600x900/?<keyword>
+- **图表自动化**：遇到流程、架构、关系逻辑，必须使用 Mermaid 代码块。
+- **样式增强**：使用 Tailwind 类名增强重点 (如 <span class="text-red-500">)。标题可使用渐变。
+- **动画**：列表项后添加 {v-click} 以逐步显示。
+
+⚠️ 基础规则：
 - 每次工具调用只能操作一个页面
 - 如果需要添加2页，必须分开调用：先 insert_page，再 insert_page，然后分别 update_page
 - 插入第一个页面后，后续页面的索引会变化！例如：在第3页后插入新页面，新页面是第4页；再在第4页后插入，新页面是第5页
@@ -191,6 +198,36 @@ const handleSubmit = async (e?: Event) => {
       id: (Date.now() + 1).toString(),
       role: 'assistant',
       content: `❌ 请求失败: ${error}`
+    });
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const exportSlides = async () => {
+  if (!confirm('确定要导出当前演示文稿为 PDF 吗？这可能需要几分钟时间。')) return;
+  try {
+    isLoading.value = true;
+    messages.value.push({
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: '正在导出 PDF，请稍候...'
+    });
+
+    // Call backend
+    await (window as any).go.main.App.ExportSlides(props.projectName);
+
+    messages.value.push({
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: '✅ 导出成功！文件已保存到项目目录。'
+    });
+  } catch (e: any) {
+    console.error("Export failed", e);
+    messages.value.push({
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: `❌ 导出失败: ${e}`
     });
   } finally {
     isLoading.value = false;
@@ -366,6 +403,14 @@ const currentSlideIssues = computed(() => {
             title="在浏览器中打开"
           >
             <span class="material-symbols-outlined text-lg">open_in_new</span>
+          </button>
+          <button
+              v-if="slidevUrl"
+            @click="exportSlides"
+            class="p-1.5 hover:bg-[#222f49] rounded-md transition-colors text-emerald-400 hover:text-emerald-300"
+            title="导出为 PDF"
+          >
+            <span class="material-symbols-outlined text-lg">picture_as_pdf</span>
           </button>
         </div>
       </div>

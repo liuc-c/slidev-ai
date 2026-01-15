@@ -3,6 +3,7 @@ package slidev
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -366,4 +367,33 @@ func (t *Tools) ReadSlides(filename string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// ExportSlides exports the slides to PDF using Slidev CLI
+func (t *Tools) ExportSlides(filename string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if filename == "" {
+		filename = "slides.md"
+	}
+
+	// Ensure filename ends with .md for the command (though slidev might handle it)
+	if !strings.HasSuffix(filename, ".md") {
+		filename += ".md"
+	}
+
+	// Command: npx slidev export <filename>
+	// This will generate <filename>-export.pdf or similar by default, or just <filename>.pdf
+	// We'll let slidev handle the output name default.
+	cmd := exec.Command("npx", "slidev", "export", filename)
+	cmd.Dir = t.WorkingDir
+
+	// Capture output for debugging
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("export failed: %v, output: %s", err, string(output))
+	}
+
+	return nil
 }

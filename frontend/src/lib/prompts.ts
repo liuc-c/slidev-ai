@@ -85,7 +85,13 @@ Hard constraints:
 - Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
 - Use "---" ONLY as slide separators between slides.
 - NEVER output a standalone "---" line inside slide body content.
-- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Director Mode / Layout & Visual Rules:
+- **Layout Diversity:** Layout must be chosen from THEME_CAPABILITIES.layouts. Do NOT use the same layout for two consecutive slides (except 'default'). Prioritize 'two-cols', 'image-right' or 'quote' to break monotony.
+- **Visual Injection:** For EVERY slide (except cover), extract a single English keyword representing the core concept. Add it to frontmatter as: image: https://source.unsplash.com/1600x900/?<keyword>
+- **Mermaid Diagrams:** If a slide explains a process, flow, or hierarchy, you MUST use a Mermaid diagram inside a \`\`\`mermaid\`\`\` code block.
+- **UnoCSS Styling:** Randomly inject Tailwind classes for emphasis. e.g. <span class="text-red-600 font-bold"> or <span class="bg-yellow-100 px-1 rounded">. For titles, occasionally use gradients.
+- **Animations:** Append {v-click} to list items for step-by-step revealing.
 
 Internal self-check (must do before final output):
 - For each slide, verify all must_include strings appear verbatim.
@@ -155,7 +161,13 @@ Hard constraints:
 - Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
 - Use "---" ONLY as slide separators between slides.
 - NEVER output a standalone "---" line inside slide body content.
-- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Director Mode / Layout & Visual Rules:
+- **Layout Diversity:** Layout must be chosen from THEME_CAPABILITIES.layouts. Do NOT use the same layout for two consecutive slides.
+- **Visual Injection:** For EVERY slide, extract a single English keyword representing the core concept. Add it to frontmatter as: image: https://source.unsplash.com/1600x900/?<keyword>
+- **Mermaid Diagrams:** Mandate usage of Mermaid diagrams inside \`\`\`mermaid\`\`\` code blocks for ANY slide describing architecture, logic flow, or relationships.
+- **UnoCSS Styling:** Inject Tailwind classes for highlights (e.g. text-blue-500, font-mono). Use gradients for titles.
+- **Animations:** Append {v-click} to list items.
 
 Internal self-check (must do before final output):
 - For each slide, verify all must_include strings appear verbatim.
@@ -167,7 +179,6 @@ STYLE_PROFILE (Tech):
 - Prefer layouts: default/two-cols.
 - Minimalist design with generous whitespace.
 - Use code blocks with syntax highlighting extensively.
-- Include mermaid diagrams for architecture and flow.
 
 `,
   },
@@ -226,7 +237,13 @@ Hard constraints:
 - Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
 - Use "---" ONLY as slide separators between slides.
 - NEVER output a standalone "---" line inside slide body content.
-- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Director Mode / Layout & Visual Rules:
+- **Layout Diversity:** Vary layouts to keep students engaged. Alternating between 'center' (for concepts) and 'two-cols' (for examples).
+- **Visual Injection:** Extract English keyword for Unsplash images (image: https://source.unsplash.com/1600x900/?<keyword>).
+- **Mermaid Diagrams:** Use Mermaid diagrams for processes or concept maps.
+- **UnoCSS Styling:** Use colors to highlight key terms (e.g. <span class="text-green-600 font-bold">).
+- **Animations:** Use {v-click} for step-by-step explanation.
 
 Internal self-check (must do before final output):
 - For each slide, verify all must_include strings appear verbatim.
@@ -296,7 +313,13 @@ Hard constraints:
 - Each slide MUST include ALL must_include[] strings **verbatim** as visible text at least once.
 - Use "---" ONLY as slide separators between slides.
 - NEVER output a standalone "---" line inside slide body content.
-- Layout must be chosen from THEME_CAPABILITIES.layouts; if unsure, use "default".
+
+Director Mode / Layout & Visual Rules:
+- **Layout Diversity:** Use creative layouts like 'image-right', 'full', 'center'. Avoid repetition.
+- **Visual Injection:** Extract English keyword for Unsplash images (image: https://source.unsplash.com/1600x900/?<keyword>).
+- **Mermaid Diagrams:** Use Mermaid if helpful, but prioritize visuals.
+- **UnoCSS Styling:** Use gradient text for titles (<span class="text-transparent bg-clip-text bg-gradient-to-r ...">). Use bold colors.
+- **Animations:** Use {v-click} for dramatic effect.
 
 Internal self-check (must do before final output):
 - For each slide, verify all must_include strings appear verbatim.
